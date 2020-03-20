@@ -1,9 +1,4 @@
-workspace(name = "example")
-
-local_repository(
-    name = "bazel_upgrade",
-    path = "../..",
-)
+workspace(name = "example_without")
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 

@@ -1,0 +1,23 @@
+workspace(name = "example_with")
+
+local_repository(
+    name = "bazel_upgrade",
+    path = "..",
+)
+
+load("@bazel_upgrade//rules:upgrade.bzl", "for_http_archive")
+
+http_archive = for_http_archive
+
+skylib_version = "0.8.0"
+
+http_archive(
+    name = "bazel_skylib",
+    sha256 = "2ef429f5d7ce7111263289644d233707dba35e39696377ebab8b0bc701f7818e",
+    type = "tar.gz",
+    url = "https://github.com/bazelbuild/bazel-skylib/releases/download/{}/bazel-skylib.{}.tar.gz".format(skylib_version, skylib_version),
+)
+
+load("@bazel_skylib//lib:versions.bzl", "versions")
+
+versions.check(minimum_bazel_version = "1.0.0")
