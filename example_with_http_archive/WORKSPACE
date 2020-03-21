@@ -1,4 +1,4 @@
-workspace(name = "example_with")
+workspace(name = "example_with_http_archive")
 
 local_repository(
     name = "bazel_upgrade",

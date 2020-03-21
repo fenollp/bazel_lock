@@ -1,0 +1,1 @@
+../example_bare/hello.sh

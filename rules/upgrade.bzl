@@ -2,14 +2,6 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", _http_archive = "http_archi
 
 _locker = "./bazel lock"
 
-# def from_locked(locked):
-#     if type(locked) != "dict":
-#         fail(msg="from_locked(locked) requires locked to be a dict", attr="locked")
-#     for name, lock in locked.items():
-#         if lock.get("kind") == "http_archive":
-#             print("http_archive SHA256: {}".format(kwargs.get("sha256")))
-#             _http_archive(**kwargs)
-
 def _deeper_lockfile_checks(locked):
     locked_version = locked.get("version")
     if locked_version != "zero":
