@@ -2,9 +2,22 @@ on: push
 name: Tests
 
 jobs:
-  ios:
-    name: TESTS
+  test_on_ubuntu:
+    name: RUN TESTS ON ubuntu
     runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Run target in example_without
+      run: cd example_without/ && bazelisk run hello
+
+    - name: Run target in example_with
+      run: cd example_with/ && bazelisk run hello
+
+  test_on_macos:
+    name: RUN TESTS ON macos
+    runs-on: macos-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v2
