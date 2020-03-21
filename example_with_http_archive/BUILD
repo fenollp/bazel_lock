@@ -1,1 +1,0 @@
-../example_bare/BUILD

@@ -18,4 +18,5 @@ http_archive(
 
 load("@bazel_skylib//lib:versions.bzl", "versions")
 
+# Not an actual requirement. This is only to demonstrate usage of http_archive
 versions.check(minimum_bazel_version = "1.0.0")

@@ -5,7 +5,7 @@ jobs:
   test_on_ubuntu:
     name: RUN TESTS ON ubuntu
     runs-on: ubuntu-latest
-    steps: &steps
+    steps:
     - name: Checkout
       uses: actions/checkout@v2
 
@@ -18,9 +18,25 @@ jobs:
   test_on_macos:
     name: RUN TESTS ON macos
     runs-on: macos-latest
-    steps: *steps
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Run target in example_bare
+      run: cd example_bare/ && bazelisk run hello
+
+    - name: Run target in example_with_http_archive
+      run: cd example_with_http_archive/ && bazelisk run hello
 
   test_on_windows:
     name: RUN TESTS ON windows
     runs-on: windows-latest
-    steps: *steps
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Run target in example_bare
+      run: cd example_bare/ && bazelisk run hello
+
+    - name: Run target in example_with_http_archive
+      run: cd example_with_http_archive/ && bazelisk run hello

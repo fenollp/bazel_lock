@@ -1,0 +1,1 @@
+../example_http_archive_bare/hello.bat

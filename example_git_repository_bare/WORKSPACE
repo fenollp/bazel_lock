@@ -1,0 +1,16 @@
+workspace(name = "example_with_git_repository")
+
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+
+git_repository(
+    name = "bazel_skylib",
+    # tag = "0.8.0",
+    commit = "3721d32c14d3639ff94320c780a60a6e658fb033",
+    remote = "https://github.com/bazelbuild/bazel-skylib.git",
+    shallow_since = "1553102012 +0100",
+)
+
+load("@bazel_skylib//lib:versions.bzl", "versions")
+
+# Not an actual requirement. This is only to demonstrate usage of git_repository
+versions.check(minimum_bazel_version = "1.0.0")

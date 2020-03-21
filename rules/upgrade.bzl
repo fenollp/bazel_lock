@@ -1,4 +1,5 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", _http_archive = "http_archive")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", _git_repository = "git_repository")
 
 _locker = "./bazel lock"
 
@@ -44,3 +45,6 @@ def http_archive(**kwargs):
     url = _apply_pin(pin, pin_url)
     kwargs.update(sha256 = sha256, url = url)
     return _http_archive(**kwargs)
+
+def git_repository(**kwargs):
+    return _git_repository(**kwargs)
