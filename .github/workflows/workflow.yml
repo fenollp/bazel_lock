@@ -11,3 +11,6 @@ jobs:
 
     - name: Run target in example_without
       run: cd example_without/ && bazelisk run hello
+
+    - name: Run target in example_with
+      run: cd example_with/ && bazelisk run hello
