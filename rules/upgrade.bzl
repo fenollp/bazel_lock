@@ -18,6 +18,9 @@ def _deeper_lockfile_checks(locked):
     if type(locked_targets) != type({}):
         fail("locked: targets must be a dict")
 
+def _apply_pin(pin, url):
+    return url.replace("<pin>", pin)
+
 def http_archive(**kwargs):
     # lockfile checks
     locked = kwargs.pop("locked", None)
@@ -26,6 +29,7 @@ def http_archive(**kwargs):
     pin = kwargs.pop("pin", None)
     if pin == None:
         fail(msg = "Field is required", attr = "pin")
+    pin_url = kwargs.pop("pin_url", kwargs.get("url"))
 
     # http_archive checks
     name = kwargs.get("name")
@@ -45,5 +49,6 @@ def http_archive(**kwargs):
     sha256 = lock.get("sha256")
     if type(sha256) != type("") or len(sha256) != 64:
         fail("Bad locked sha256 for {!r}. Please run {!r} first.".format(name, _locker))
-    kwargs.update(sha256 = sha256)
+    url = _apply_pin(pin, pin_url)
+    kwargs.update(sha256 = sha256, url = url)
     return _http_archive(**kwargs)
