@@ -1,0 +1,13 @@
+on: push
+name: Tests
+
+jobs:
+  ios:
+    name: TESTS
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Run target in example_without
+      run: cd example_without/ && bazelisk run hello
