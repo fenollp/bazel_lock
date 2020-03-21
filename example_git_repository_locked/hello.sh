@@ -1,1 +1,3 @@
-../example_http_archive_bare/hello.sh
+#!/bin/sh -eu
+
+echo Hello!
