@@ -5,17 +5,15 @@ local_repository(
     path = "..",
 )
 
-load("@bazel_upgrade//rules:upgrade.bzl", "for_http_archive")
-
-http_archive = for_http_archive
-
-skylib_version = "0.8.0"
+load("@bazel_upgrade//rules:upgrade.bzl", "http_archive")
+load("//:LOCKFILE.bzl", "locked")
 
 http_archive(
     name = "bazel_skylib",
-    sha256 = "2ef429f5d7ce7111263289644d233707dba35e39696377ebab8b0bc701f7818e",
+    locked = locked,
+    pin = "0.8.0",
     type = "tar.gz",
-    url = "https://github.com/bazelbuild/bazel-skylib/releases/download/{}/bazel-skylib.{}.tar.gz".format(skylib_version, skylib_version),
+    url = "https://github.com/bazelbuild/bazel-skylib/releases/download/<pin>/bazel-skylib.<pin>.tar.gz",
 )
 
 load("@bazel_skylib//lib:versions.bzl", "versions")
