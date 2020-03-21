@@ -1,0 +1,27 @@
+#!/bin/sh
+
+BAZEL=${BAZEL:-bazel}
+W=WORKSPACE
+
+upgrade() {
+	target="$1"; shift
+	uid=$RANDOM$RANDOM$RANDOM
+
+	# "unlock"
+	sed "s% = locked,% = {},#locked$uid,%g" $W >$W.$uid
+	mv $W.$uid $W
+
+	# This is just to demonstrate a way to get Bazel to output:
+	# DEBUG: Rule 'bazel_skylib' indicated that a canonical reproducible form can be obtained by modifying arguments sha256 = "2ef429f5d7ce7111263289644d233707dba35e39696377ebab8b0bc701f7818e"
+	# DEBUG: Rule 'bazel_skylib' indicated that a canonical reproducible form can be obtained by modifying arguments commit = "3721d32c14d3639ff94320c780a60a6e658fb033", shallow_since = "1553102012 +0100" and dropping ["tag"]
+	$BAZEL build "$target"
+	errcode=$?
+
+	sed "s% = {},#locked$uid,% = locked,%g" $W >$W.$uid
+	mv $W.$uid $W
+	return $errcode
+}
+
+[ $# -ne 1 ] && echo "Usage: $0  <target to upgrade>" && exit 1
+
+upgrade "$1"
