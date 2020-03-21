@@ -8,12 +8,13 @@ local_repository(
 load("@bazel_upgrade//rules:upgrade.bzl", "http_archive")
 load("//:LOCKFILE.bzl", "locked")
 
+skylib_version = "0.8.0"
+
 http_archive(
     name = "bazel_skylib",
     locked = locked,
-    pin = "0.8.0",
-    pin_url = "https://github.com/bazelbuild/bazel-skylib/releases/download/<pin>/bazel-skylib.<pin>.tar.gz",
     type = "tar.gz",
+    url = "https://github.com/bazelbuild/bazel-skylib/releases/download/{}/bazel-skylib.{}.tar.gz".format(skylib_version, skylib_version),
 )
 
 load("@bazel_skylib//lib:versions.bzl", "versions")
