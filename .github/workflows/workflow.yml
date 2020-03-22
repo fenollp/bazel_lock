@@ -21,13 +21,13 @@ jobs:
     runs-on: macos-latest
     steps:
     - uses: actions/checkout@v2
-    - run: cd example_http_archive_bare && bazelisk run hello
-    - run: cd example_http_archive_locked && bazelisk run hello
-    - run: cd example_git_repository_bare && bazelisk run hello
-    - run: cd example_git_repository_locked && bazelisk run hello
-    - run: bazelisk clean --expunge
-    - run: cd example_http_archive_locked && BAZEL=bazelisk ../bazel-upgrade hello
-    - run: cd example_git_repository_locked && BAZEL=bazelisk ../bazel-upgrade hello
+    - run: cd example_http_archive_bare && bazel run hello
+    - run: cd example_http_archive_locked && bazel run hello
+    - run: cd example_git_repository_bare && bazel run hello
+    - run: cd example_git_repository_locked && bazel run hello
+    - run: bazel clean --expunge
+    - run: cd example_http_archive_locked && ../bazel-upgrade hello
+    - run: cd example_git_repository_locked && ../bazel-upgrade hello
     - run: git --no-pager diff && [ 0 -eq "$(git diff | wc -l)" ]
 
   test_on_windows:
