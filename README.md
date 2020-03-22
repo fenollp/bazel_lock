@@ -12,7 +12,7 @@ touch LOCKFILE.bzl
 Replace your loading of `http_archive` or `git_repository`.
 Remove all their `sha256` or `commit` fields: they will be read from the lockfile.
 ```python
-load("@bazel_lock//rules:fetch.bzl", "http_archive", "git_repository")
+load("@bazel_lock//rules:locked.bzl", "http_archive", "git_repository")
 load("//:LOCKFILE.bzl", "locked")
 
 http_archive(
@@ -41,7 +41,8 @@ Repeat this last action only when adding, removing or upgrading dependencies.
 ## Examples
 
 * [http_archive](./example_http_archive_bare/WORKSPACE) example
-	* compared to [bare version](./example_http_archive_locked/WORKSPACE)
+    * compared to [bare version](./example_http_archive_locked/WORKSPACE)
+    * and to [an upgradable version](./example_http_archive_locked_upgradable/WORKSPACE)
 * [git_repository](./example_git_repository_bare/WORKSPACE) example
 	* compared to [bare version](./example_git_repository_locked/WORKSPACE)
 

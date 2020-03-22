@@ -13,22 +13,33 @@ get_string_field() {
 	| awk -v FS='"' '{print $2;}'
 }
 
+lock() {
+	printf '        "%s": {%s},' "$1" "$2"
+}
+
 upgrade() {
 	target="$1"; shift
-	uid=$RANDOM$RANDOM$RANDOM
+	uid=$(date +%N)
 
 	# "unlock"
-	sed "s% = locked,% = {},#locked$uid,%g" $W >$W.$uid
-	mv $W.$uid $W
-	printf 'locked = {\n    "version": "zero",\n' >$L.$uid
+	sed 's%^    "version": "zero",$%    "version": "",%' $L >$L.$uid
+	mv $L.$uid $L
+	printf 'locked = {\n' >$L.$uid
+	printf '    "repositories": {\n' >>$L.$uid
 
 	txt=$(mktemp)
 	dir=$(mktemp -d)
 	$BAZEL --output_user_root="$dir" build "$target" >"$txt" 2>&1
 	errcode=$?
 	rm -rf "$dir"
+	if [ $errcode -ne 0 ]; then
+		rm "$txt"
+		echo "Failed running $BAZEL build $target"
+		return $errcode
+	fi
+
 	(cat "$txt" && rm "$txt") \
-	| grep -F 'indicated that a canonical reproducible form can be obtained by' \
+	| grep -F 'indicated that a canonical reproducible form can be obtained' \
 	| while read -r line; do
 		name=$(echo "$line" | awk -v FS="'" '{print $2;}')
 
@@ -42,34 +53,39 @@ upgrade() {
 		kind=$(git grep -h -B1 -F 'name = "'$name'",' -- $W | head -n1 | sed 's%(%%')
 		case "$kind" in
 			http_archive)
-				url=$(get_string_field "$name" url)
-				printf '    "%s %s": {\n' "$kind" "$url" >>$L.$uid
-				printf '        "": {%s},\n' "$pinned" >>$L.$uid
-				printf '    },\n' >>$L.$uid
+				# url=$(get_string_field "$name" url)
+				# url_format=$(get_string_field "$name" url_format || '')
+				# format_resolver=$(get_string_field "$name" format_resolver || '')
+				# if [ -n "$url" ] && ( [ -n "$url_format" ] || [ -n "$format_resolver" ] ); then
+				# 	echo "Rule '$name' cannot use url and url_format or format_resolver"
+				# 	errcode=1
+				# 	break
+				# fi
+				# format_hole=$(get_string_field "$name" format_hole || '')
+				# upgrade_constraint=$(get_string_field "$name" upgrade_constraint || '')
+				# upgrader=$(get_string_field "$name" upgrader || '')
+
+				lock "$name" "$pinned" >>$L.$uid
 				;;
 			git_repository)
-				remote=$(get_string_field "$name" remote)
-				printf '    "%s %s": {\n' "$kind" "$remote" >>$L.$uid
-				vsn="tag $(get_string_field "$name" tag)"
-				if [ "$vsn" = 'tag ' ]; then
-					vsn="branch $(get_string_field "$name" branch)"
-				fi
-				printf '        "%s": {%s},\n' "$vsn" "$pinned" >>$L.$uid
-				printf '    },\n' >>$L.$uid
+				lock "$name" "$pinned" >>$L.$uid
 				;;
 			*)
 				echo "Unsupported rule kind $kind"
-				[ $errcode -eq 0 ] && errcode=1
+				errcode=1
 				break
 				;;
 		esac
-		[ $errcode -eq 0 ] && echo "Locked $kind '$name'"
+		[ $errcode -eq 0 ] && echo "Locked $kind(name = \"$name\", ...)"
 	done
 
 	if [ $errcode -ne 0 ]; then
-		rm $L.$uid
+		sed 's%^    "version": "",$%    "version": "zero",%' $L >$L.$uid
+		mv $L.$uid $L
 	else
 		mv $L.$uid $L
+		printf '    },\n' >>$L
+		printf '    "version": "zero",\n' >>$L
 		printf '}\n' >>$L
 		command -v buildifier >/dev/null 2>&1 && buildifier -lint=fix $L
 	fi

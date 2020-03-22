@@ -1,4 +1,4 @@
-workspace(name = "example_http_archive_locked")
+workspace(name = "example_http_archive_locked_upgradable")
 
 local_repository(
     name = "bazel_lock",
@@ -10,9 +10,12 @@ load("//:LOCKFILE.bzl", "locked")
 
 http_archive(
     name = "bazel_skylib",
+    format_resolver = "github_release",
     locked = locked,
     type = "tar.gz",
-    url = "https://github.com/bazelbuild/bazel-skylib/releases/download/0.8.0/bazel-skylib.0.8.0.tar.gz",
+    upgrade_constraint = "== 0.8.0",
+    upgrader = "semver",
+    url_format = "https://github.com/bazelbuild/bazel-skylib/releases/download/<PIN>/bazel-skylib.<PIN>.tar.gz",
 )
 
 load("@bazel_skylib//lib:versions.bzl", "versions")

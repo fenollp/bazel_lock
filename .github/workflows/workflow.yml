@@ -9,10 +9,12 @@ jobs:
     - uses: actions/checkout@v2
     - run: cd example_http_archive_bare && bazelisk run hello
     - run: cd example_http_archive_locked && bazelisk run hello
+    - run: cd example_http_archive_locked_upgradable && bazelisk run hello
     - run: cd example_git_repository_bare && bazelisk run hello
     - run: cd example_git_repository_locked && bazelisk run hello
     - run: bazelisk clean --expunge
     - run: cd example_http_archive_locked && BAZEL=bazelisk ../bazel-lock hello
+    - run: cd example_http_archive_locked_upgradable && BAZEL=bazelisk ../bazel-lock hello
     - run: cd example_git_repository_locked && BAZEL=bazelisk ../bazel-lock hello
     - run: git --no-pager diff && [ 0 -eq "$(git diff | wc -l)" ]
 
@@ -23,10 +25,12 @@ jobs:
     - uses: actions/checkout@v2
     - run: cd example_http_archive_bare && bazel run hello
     - run: cd example_http_archive_locked && bazel run hello
+    - run: cd example_http_archive_locked_upgradable && bazel run hello
     - run: cd example_git_repository_bare && bazel run hello
     - run: cd example_git_repository_locked && bazel run hello
     - run: bazel clean --expunge
     - run: cd example_http_archive_locked && ../bazel-lock hello
+    - run: cd example_http_archive_locked_upgradable && ../bazel-lock hello
     - run: cd example_git_repository_locked && ../bazel-lock hello
     - run: git --no-pager diff && [ 0 -eq "$(git diff | wc -l)" ]
 
@@ -37,10 +41,13 @@ jobs:
     - uses: actions/checkout@v2
     - run: cd example_http_archive_bare && bazelisk run hello
     - run: cd example_http_archive_locked && bazelisk run hello
+    - run: cd example_http_archive_locked_upgradable && bazelisk run hello
     - run: cd example_git_repository_bare && bazelisk run hello
     - run: cd example_git_repository_locked && bazelisk run hello
     - run: bazelisk clean --expunge
     - run: cd example_http_archive_locked && BAZEL=bazelisk ../bazel-lock hello
+      shell: bash
+    - run: cd example_http_archive_locked_upgradable && BAZEL=bazelisk ../bazel-lock hello
       shell: bash
     - run: cd example_git_repository_locked && BAZEL=bazelisk ../bazel-lock hello
       shell: bash
