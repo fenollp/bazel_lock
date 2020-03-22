@@ -41,5 +41,7 @@ jobs:
     - run: cd example_git_repository_locked && bazelisk run hello
     - run: bazelisk clean --expunge
     - run: cd example_http_archive_locked && BAZEL=bazelisk ../bazel-upgrade hello
+      shell: bash
     - run: cd example_git_repository_locked && BAZEL=bazelisk ../bazel-upgrade hello
+      shell: bash
     - run: git --no-pager diff && [ 0 -eq "$(git diff | wc -l)" ]
