@@ -5,7 +5,7 @@ local_repository(
     path = "..",
 )
 
-load("@bazel_upgrade//rules:upgrade.bzl", "git_repository")
+load("@bazel_upgrade//rules:fetch.bzl", "git_repository")
 load("//:LOCKFILE.bzl", "locked")
 
 git_repository(
