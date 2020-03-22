@@ -1,4 +1,4 @@
-workspace(name = "example_with_git_repository")
+workspace(name = "example_git_repository_bare")
 
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 

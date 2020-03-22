@@ -1,4 +1,4 @@
-workspace(name = "example_with_http_archive")
+workspace(name = "example_http_archive_locked")
 
 local_repository(
     name = "bazel_lock",
