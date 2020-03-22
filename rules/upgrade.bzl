@@ -23,7 +23,8 @@ def _impl(**impld):
 
     # Remove fields that are not required once the lockfile is in place
     for field in impld.pop("pops", []):
-        kwargs.pop(field)
+        if field in kwargs:
+            kwargs.pop(field)
 
     pinned = locked.get(root, {}).get(vsn, {})
     if len(pinned) == 0:
