@@ -36,6 +36,8 @@ upgrade() {
 				| awk -v FS='and dropping' '{print $1;}' \
 				| awk -v FS='modifying arguments' '{print $2;}' \
 				| sed -r 's% ([^ ]+) =% "\1":%g')
+		pinned=${pinned# }
+		pinned=${pinned% }
 
 		kind=$(git grep -h -B1 -F 'name = "'$name'",' -- $W | head -n1 | sed 's%(%%')
 		case "$kind" in
@@ -43,6 +45,7 @@ upgrade() {
 				url=$(get_string_field "$name" url)
 				printf '    "%s %s": {\n' "$kind" "$url" >>$L.$uid
 				printf '        "": {%s},\n' "$pinned" >>$L.$uid
+				printf '    },\n' >>$L.$uid
 				;;
 			git_repository)
 				remote=$(get_string_field "$name" remote)
@@ -52,6 +55,7 @@ upgrade() {
 					vsn="branch $(get_string_field "$name" branch)"
 				fi
 				printf '        "%s": {%s},\n' "$vsn" "$pinned" >>$L.$uid
+				printf '    },\n' >>$L.$uid
 				;;
 			*)
 				echo "Unsupported rule kind $kind"
@@ -59,11 +63,7 @@ upgrade() {
 				break
 				;;
 		esac
-
-		if [ $errcode -eq 0 ]; then
-			printf '    }\n' >>$L.$uid
-			echo "Locked $kind '$name'"
-		fi
+		[ $errcode -eq 0 ] && echo "Locked $kind '$name'"
 	done
 
 	if [ $errcode -ne 0 ]; then
@@ -71,9 +71,7 @@ upgrade() {
 	else
 		mv $L.$uid $L
 		printf '}\n' >>$L
-		if command -v buildifier >/dev/null 2>&1; then
-			buildifier -lint=fix $L
-		fi
+		command -v buildifier >/dev/null 2>&1 && buildifier -lint=fix $L
 	fi
 	sed "s% = {},#locked$uid,% = locked,%g" $W >$W.$uid
 	mv $W.$uid $W
