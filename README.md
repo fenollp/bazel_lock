@@ -1,4 +1,4 @@
-# [bazel_upgrade](https://github.com/fenollp/bazel_upgrade)
+# [bazel_lock](https://github.com/fenollp/bazel_lock)
 
 Lockfile & deps upgrader for [Bazel](https://bazel.build)
 
@@ -12,7 +12,7 @@ touch LOCKFILE.bzl
 Replace your loading of `http_archive` or `git_repository`.
 Remove all their `sha256` or `commit` fields: they will be read from the lockfile.
 ```python
-load("@bazel_upgrade//rules:fetch.bzl", "http_archive", "git_repository")
+load("@bazel_lock//rules:fetch.bzl", "http_archive", "git_repository")
 load("//:LOCKFILE.bzl", "locked")
 
 http_archive(
@@ -31,7 +31,7 @@ git_repository(
 
 Lock your dependencies:
 ```shell
-./bazel-upgrade //...  # or a specific build target
+./bazel-lock //...  # or a specific build target
 
 # Keep track of the lockfile
 git commit -am 'Lock Bazel dependencies'
@@ -49,7 +49,7 @@ Repeat this last action only when adding, removing or upgrading dependencies.
 
 Instead of setting `sha256` or `commit` kwargs in your `./WORKSPACE` file this stores these values in `./LOCKFILE.bzl`.
 
-Then when adding or upgrading dependencies (install then) run `bazel-upgrade`.
+Then when adding or upgrading dependencies (install then) run `bazel-lock`.
 
 ### Goals
 

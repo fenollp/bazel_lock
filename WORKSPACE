@@ -1,1 +1,1 @@
-workspace(name = "bazel_upgrade")
+workspace(name = "bazel_lock")

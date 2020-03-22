@@ -1,11 +1,11 @@
 workspace(name = "example_with_http_archive")
 
 local_repository(
-    name = "bazel_upgrade",
+    name = "bazel_lock",
     path = "..",
 )
 
-load("@bazel_upgrade//rules:fetch.bzl", "http_archive")
+load("@bazel_lock//rules:fetch.bzl", "http_archive")
 load("//:LOCKFILE.bzl", "locked")
 
 http_archive(
