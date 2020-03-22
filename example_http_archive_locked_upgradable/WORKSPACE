@@ -10,12 +10,10 @@ load("//:LOCKFILE.bzl", "locked")
 
 http_archive(
     name = "bazel_skylib",
-    format_resolver = "github_release",
     locked = locked,
     type = "tar.gz",
-    upgrade_constraint = "== 0.8.0",
-    upgrader = "semver",
-    url_format = "https://github.com/bazelbuild/bazel-skylib/releases/download/<PIN>/bazel-skylib.<PIN>.tar.gz",
+    upgrade_constraint = "~> 0.8.0",
+    upgrades_slug = "bazelbuild/bazel-skylib",
 )
 
 load("@bazel_skylib//lib:versions.bzl", "versions")

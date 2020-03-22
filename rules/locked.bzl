@@ -58,11 +58,8 @@ def http_archive(**kwargs):
         fail(msg = "Field must be present", attr = "url")
 
     return _impl(_http_archive, kwargs, [
-        "url_format",
-        "format_hole",
-        "format_resolver",
+        "upgrades_slug",
         "upgrade_constraint",
-        "upgrader",
     ])
 
 def git_repository(**kwargs):
