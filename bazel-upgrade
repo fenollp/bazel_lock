@@ -1,7 +1,17 @@
 #!/bin/sh
 
+# This tool is just to demonstrate a possible usage.
+# Ideally this is part of Bazel itself, replacing these hacks.
+
 BAZEL=${BAZEL:-bazel}
 W=WORKSPACE
+L=LOCKFILE.bzl
+
+get_string_field() {
+	git grep -h -A999 -F "name = \"$1\"," -- $W \
+	| grep -F "    $2 = " \
+	| awk -v FS='"' '{print $2;}'
+}
 
 upgrade() {
 	target="$1"; shift
@@ -10,13 +20,61 @@ upgrade() {
 	# "unlock"
 	sed "s% = locked,% = {},#locked$uid,%g" $W >$W.$uid
 	mv $W.$uid $W
+	printf 'locked = {\n    "version": "zero",\n' >$L.$uid
 
-	# This is just to demonstrate a way to get Bazel to output:
-	# DEBUG: Rule 'bazel_skylib' indicated that a canonical reproducible form can be obtained by modifying arguments sha256 = "2ef429f5d7ce7111263289644d233707dba35e39696377ebab8b0bc701f7818e"
-	# DEBUG: Rule 'bazel_skylib' indicated that a canonical reproducible form can be obtained by modifying arguments commit = "3721d32c14d3639ff94320c780a60a6e658fb033", shallow_since = "1553102012 +0100" and dropping ["tag"]
-	$BAZEL build "$target"
+	txt=$(mktemp)
+	dir=$(mktemp -d)
+	$BAZEL --output_user_root="$dir" build "$target" >"$txt" 2>&1
 	errcode=$?
+	rm -rf "$dir"
+	(cat "$txt" && rm "$txt") \
+	| grep -F 'indicated that a canonical reproducible form can be obtained by' \
+	| while read -r line; do
+		name=$(echo "$line" | awk -v FS="'" '{print $2;}')
 
+		pinned=$(echo "$line" \
+				| awk -v FS='and dropping' '{print $1;}' \
+				| awk -v FS='modifying arguments' '{print $2;}' \
+				| sed -r 's% ([^ ]+) =% "\1":%g')
+
+		kind=$(git grep -h -B1 -F 'name = "'$name'",' -- $W | head -n1 | sed 's%(%%')
+		case "$kind" in
+			http_archive)
+				url=$(get_string_field "$name" url)
+				printf '    "%s %s": {\n' "$kind" "$url" >>$L.$uid
+				printf '        "": {%s},\n' "$pinned" >>$L.$uid
+				;;
+			git_repository)
+				remote=$(get_string_field "$name" remote)
+				printf '    "%s %s": {\n' "$kind" "$remote" >>$L.$uid
+				vsn="tag $(get_string_field "$name" tag)"
+				if [ "$vsn" = 'tag ' ]; then
+					vsn="branch $(get_string_field "$name" branch)"
+				fi
+				printf '        "%s": {%s},\n' "$vsn" "$pinned" >>$L.$uid
+				;;
+			*)
+				echo "Unsupported rule kind $kind"
+				[ $errcode -eq 0 ] && errcode=1
+				break
+				;;
+		esac
+
+		if [ $errcode -eq 0 ]; then
+			printf '    }\n' >>$L.$uid
+			echo "Locked $kind '$name'"
+		fi
+	done
+
+	if [ $errcode -ne 0 ]; then
+		rm $L.$uid
+	else
+		mv $L.$uid $L
+		printf '}\n' >>$L
+		if command -v buildifier >/dev/null 2>&1; then
+			buildifier -lint=fix $L
+		fi
+	fi
 	sed "s% = {},#locked$uid,% = locked,%g" $W >$W.$uid
 	mv $W.$uid $W
 	return $errcode
@@ -24,4 +82,9 @@ upgrade() {
 
 [ $# -ne 1 ] && echo "Usage: $0  <target to upgrade>" && exit 1
 
-upgrade "$1"
+if [ -f $W ] && grep -F ' = locked,' -- $W >/dev/null; then
+	upgrade "$1"
+else
+	echo "No $W relying on lockfile here."
+	exit 1
+fi
