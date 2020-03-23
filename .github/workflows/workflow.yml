@@ -33,6 +33,7 @@ jobs:
     runs-on: macos-latest
     env: {BAZEL: bazel}
     steps:
+    - uses: actions/checkout@v2
     # Running locked
     - run: cd example_http_archive_bare && $BAZEL run hello
     - run: cd example_http_archive_locked && $BAZEL run hello
