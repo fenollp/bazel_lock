@@ -9,14 +9,14 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     # Running locked
-    - run: cd example_http_archive_bare && bazelisk run hello
-    - run: cd example_http_archive_locked && bazelisk run hello
-    - run: cd example_http_archive_locked_upgradable && bazelisk run hello
-    - run: cd example_git_repository_bare && bazelisk run hello
-    - run: cd example_git_repository_locked && bazelisk run hello
+    - run: cd example_http_archive_bare && $BAZEL run hello
+    - run: cd example_http_archive_locked && $BAZEL run hello
+    - run: cd example_http_archive_locked_upgradable && $BAZEL run hello
+    - run: cd example_git_repository_bare && $BAZEL run hello
+    - run: cd example_git_repository_locked && $BAZEL run hello
     - run: git --no-pager diff && [ 0 -eq "$(git diff | wc -l)" ]
     # Updating dependencies
-    - run: bazelisk clean --expunge
+    - run: $BAZEL clean --expunge
     - run: cd example_http_archive_locked && ../bazel-lock hello
     - run: cd example_git_repository_locked && ../bazel-lock hello
     - run: git --no-pager diff && [ 0 -eq "$(git diff | wc -l)" ]
@@ -24,9 +24,9 @@ jobs:
     - run: git --no-pager diff && [ 8 -eq "$(git diff | wc -l)" ]
     # Running unlocked
     - run: for lockfile in example_*locked*/LOCKFILE.bzl; do echo 'locked = {}'>$lockfile; done
-    - run: cd example_http_archive_locked && bazelisk run hello
-    - run: cd example_http_archive_locked_upgradable && bazelisk run hello
-    - run: cd example_git_repository_locked && ! bazelisk run hello
+    - run: cd example_http_archive_locked && $BAZEL run hello
+    - run: cd example_http_archive_locked_upgradable && ! $BAZEL run hello
+    - run: cd example_git_repository_locked && $BAZEL run hello
     - run: git --no-pager diff && [ 0 -eq "$(git diff | wc -l)" ]
 
   test_on_macos:
@@ -35,14 +35,14 @@ jobs:
     env: {BAZEL: bazel}
     steps:
     # Running locked
-    - run: cd example_http_archive_bare && bazelisk run hello
-    - run: cd example_http_archive_locked && bazelisk run hello
-    - run: cd example_http_archive_locked_upgradable && bazelisk run hello
-    - run: cd example_git_repository_bare && bazelisk run hello
-    - run: cd example_git_repository_locked && bazelisk run hello
+    - run: cd example_http_archive_bare && $BAZEL run hello
+    - run: cd example_http_archive_locked && $BAZEL run hello
+    - run: cd example_http_archive_locked_upgradable && $BAZEL run hello
+    - run: cd example_git_repository_bare && $BAZEL run hello
+    - run: cd example_git_repository_locked && $BAZEL run hello
     - run: git --no-pager diff && [ 0 -eq "$(git diff | wc -l)" ]
     # Updating dependencies
-    - run: bazelisk clean --expunge
+    - run: $BAZEL clean --expunge
     - run: cd example_http_archive_locked && ../bazel-lock hello
     - run: cd example_git_repository_locked && ../bazel-lock hello
     - run: git --no-pager diff && [ 0 -eq "$(git diff | wc -l)" ]
@@ -50,9 +50,9 @@ jobs:
     - run: git --no-pager diff && [ 8 -eq "$(git diff | wc -l)" ]
     # Running unlocked
     - run: for lockfile in example_*locked*/LOCKFILE.bzl; do echo 'locked = {}'>$lockfile; done
-    - run: cd example_http_archive_locked && bazelisk run hello
-    - run: cd example_http_archive_locked_upgradable && bazelisk run hello
-    - run: cd example_git_repository_locked && ! bazelisk run hello
+    - run: cd example_http_archive_locked && $BAZEL run hello
+    - run: cd example_http_archive_locked_upgradable && ! $BAZEL run hello
+    - run: cd example_git_repository_locked && $BAZEL run hello
     - run: git --no-pager diff && [ 0 -eq "$(git diff | wc -l)" ]
 
   test_on_windows:
@@ -61,14 +61,14 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     # Running locked
-    - run: cd example_http_archive_bare && bazelisk run hello
-    - run: cd example_http_archive_locked && bazelisk run hello
-    - run: cd example_http_archive_locked_upgradable && bazelisk run hello
-    - run: cd example_git_repository_bare && bazelisk run hello
-    - run: cd example_git_repository_locked && bazelisk run hello
+    - run: cd example_http_archive_bare && $BAZEL run hello
+    - run: cd example_http_archive_locked && $BAZEL run hello
+    - run: cd example_http_archive_locked_upgradable && $BAZEL run hello
+    - run: cd example_git_repository_bare && $BAZEL run hello
+    - run: cd example_git_repository_locked && $BAZEL run hello
     - run: git --no-pager diff && [ 0 -eq "$(git diff | wc -l)" ]
     # Updating dependencies
-    - run: bazelisk clean --expunge
+    - run: $BAZEL clean --expunge
     - run: cd example_http_archive_locked && ../bazel-lock hello
     - run: cd example_git_repository_locked && ../bazel-lock hello
     - run: git --no-pager diff && [ 0 -eq "$(git diff | wc -l)" ]
@@ -76,7 +76,7 @@ jobs:
     - run: git --no-pager diff && [ 8 -eq "$(git diff | wc -l)" ]
     # Running unlocked
     - run: for lockfile in example_*locked*/LOCKFILE.bzl; do echo 'locked = {}'>$lockfile; done
-    - run: cd example_http_archive_locked && bazelisk run hello
-    - run: cd example_http_archive_locked_upgradable && bazelisk run hello
-    - run: cd example_git_repository_locked && ! bazelisk run hello
+    - run: cd example_http_archive_locked && $BAZEL run hello
+    - run: cd example_http_archive_locked_upgradable && ! $BAZEL run hello
+    - run: cd example_git_repository_locked && $BAZEL run hello
     - run: git --no-pager diff && [ 0 -eq "$(git diff | wc -l)" ]
