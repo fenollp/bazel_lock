@@ -3,11 +3,6 @@ load("@bazel_tools//tools/build_defs/repo:git.bzl", _git_repository = "git_repos
 
 _LOCKER = " Please run `./bazel lock` first."
 
-# LOCKFILE.bzl format:
-## version = ...
-## locked = {"WORKSPACE rule - accessible key": {enough data to output deterministic rule}}
-## => locked = {"TARGET": }
-
 def _nonempty_string(x):
     return type(x) == type("") and len(x) > 0
 
@@ -47,12 +42,12 @@ def http_archive(**kwargs):
 
     # Fields that must be here
     url = kwargs.get("url")
-    url_format = kwargs.get("url_format")
-    if _nonempty_string(url) and _nonempty_string(url_format):
-        fail("Fields url and url_format are mutually exclusive")
+    upgrades_slug = kwargs.get("upgrades_slug")
+    if _nonempty_string(url) and _nonempty_string(upgrades_slug):
+        fail("Fields url and upgrades_slug are mutually exclusive")
     elif _nonempty_string(url):
         pass
-    elif _nonempty_string(url_format):
+    elif _nonempty_string(upgrades_slug):
         pass
     else:
         fail(msg = "Field must be present", attr = "url")

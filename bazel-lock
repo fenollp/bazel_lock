@@ -14,7 +14,7 @@ get_string_field() {
 }
 
 lock() {
-	printf '        "%s": {%s},' "$1" "$2"
+	printf 'locked["repositories"]["%s"] = {%s}\n' "$1" "$2"
 }
 
 upgrade() {
@@ -35,7 +35,9 @@ upgrade() {
 		return $errcode
 	fi
 	printf 'locked = {\n' >$L.$uid
-	printf '    "repositories": {\n' >>$L.$uid
+	printf '    "version": "zero",\n' >>$L.$uid
+	printf '    "repositories": {},\n' >>$L.$uid
+	printf '}\n' >>$L.$uid
 
 	(cat "$txt" && rm "$txt") \
 	| grep -F 'indicated that a canonical reproducible form can be obtained' \
@@ -53,22 +55,28 @@ upgrade() {
 		case "$kind" in
 			http_archive)
 				url=$(get_string_field "$name" url)
-				url_format=$(get_string_field "$name" url_format || '')
-				format_resolver=$(get_string_field "$name" format_resolver || '')
+				upgrades_slug=$(get_string_field "$name" upgrades_slug || '')
 				if [ -n "$url" ]; then
-					if [ -n "$url_format" ] || [ -n "$format_resolver" ]; then
-						echo "Rule '$name' cannot use url and url_format or format_resolver"
+					if [ -n "$upgrades_slug" ]; then
+						echo "Exactly one of url, or upgrades_slug must be provided"
 						errcode=1
 						break
 					fi
+					# Pin http_archive's sha256 given url
 					lock "$name" "$pinned" >>$L.$uid
+					continue
 				fi
-				format_hole=$(get_string_field "$name" format_hole || '')
 				upgrade_constraint=$(get_string_field "$name" upgrade_constraint || '')
-				upgrader=$(get_string_field "$name" upgrader || '')
-
+				type=$(get_string_field "$name" type || '')
+				url=$(curl -#fSL "https://api.github.com/repos/$upgrades_slug/releases" \
+					| jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
+					| grep "$type$" \
+					| head -n1)
+				sha256=$(curl -#fSL "$url" | awk '{print $1}')
+				lock "$name" "\"url\": \"$url\", \"sha256\": \"$sha256\"" >>$L.$uid
 				;;
 			git_repository)
+				# Pin git_repository's commit given tag or branch
 				lock "$name" "$pinned" >>$L.$uid
 				;;
 			*)
@@ -82,9 +90,6 @@ upgrade() {
 
 	if [ $errcode -eq 0 ]; then
 		mv $L.$uid $L
-		printf '    },\n' >>$L
-		printf '    "version": "zero",\n' >>$L
-		printf '}\n' >>$L
 		command -v buildifier >/dev/null 2>&1 && buildifier -lint=fix $L
 	fi
 	return $errcode
