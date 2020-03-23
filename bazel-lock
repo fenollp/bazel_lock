@@ -85,10 +85,24 @@ fi
 		[ -z "$url" ] && pinned="\"url\": locked[\"$name\"][\"url\"], $pinned"
 	fi
 	Pin "$name" "$pinned"
-	[ $errcode -eq 0 ] && echo "Locked $kind(name = \"$name\", ...)"
+	echo "Locked $kind(name = \"$name\", ...)"
 done
 
-if [ $errcode -eq 0 ]; then
-	command -v buildifier >/dev/null 2>&1 && buildifier -lint=fix $L
-fi
+# Uses json.dumps to fmt with double quotes
+pretty=$(mktemp)
+cat << EOF >"$pretty"
+from __future__ import print_function
+import json
+EOF
+cat $L >>"$pretty"
+cat << EOF >>"$pretty"
+print('locked = {}')
+for k, v in locked.items():
+	k = json.dumps(k)
+	v = json.dumps(v, sort_keys=True)
+	print('locked[{}] = {}'.format(k, v))
+EOF
+python "$pretty" >$L
+errcode=$?
+rm "$pretty"
 exit $errcode
