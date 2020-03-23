@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -eu
 
 # This tool is just to demonstrate a possible usage.
 # Ideally this is part of Bazel itself, replacing these hacks.
@@ -7,38 +7,69 @@ BAZEL=${BAZEL:-bazel}
 W=WORKSPACE
 L=LOCKFILE.bzl
 
-get_string_field() {
+GetStringField() {
 	git grep -h -A999 -F "name = \"$1\"," -- $W \
 	| grep -F "    $2 = " \
 	| awk -v FS='"' '{print $2;}'
 }
 
-lock() {
-	printf 'locked["repositories"]["%s"] = {%s}\n' "$1" "$2"
+Lock() {
+	sed 's%^    "version": "",$%    "version": "zero",%' $L >$L~ && mv $L~ $L
 }
 
-upgrade() {
-	target="$1"; shift
-	uid=$(date +%N)
+Unlock() {
+	sed 's%^    "version": "zero",$%    "version": "",%' $L >$L~ && mv $L~ $L
+}
 
-	# "unlock"
-	sed 's%^    "version": "zero",$%    "version": "",%' $L >$L.$uid && mv $L.$uid $L
+Pin() {
+	printf 'locked["repositories"]["%s"] = {%s}\n' "$1" "$2" >>$L
+}
+
+UnlockLock() {
+	target="$1"; shift
+	if [ ! -f $W ]; then
+		echo "No Bazel $W in $PWD"
+		return 1
+	fi
+
+	if [ ! -f $L ]; then
+		echo 'locked = {' >$L
+		echo '    "version": "zero",' >>$L
+		echo '    "repositories": {},' >>$L
+		echo '}' >>$L
+	fi
+
+	Unlock
+
+	# Upgrade what needs to be resolved
+	for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS='"' '{print $2}'); do
+		upgrades_slug=$(GetStringField "$name" upgrades_slug || '')
+		[ -z "$upgrades_slug" ] && continue
+		type=$(GetStringField "$name" type || '')
+		url=$(curl -#fSL "https://api.github.com/repos/$upgrades_slug/releases" \
+			| jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
+			| grep "$type$" \
+			| head -n1)
+		# TODO: upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '')
+		Pin "$name" "\"url\": \"$url\""
+	done
+
+	# Run build
 	txt=$(mktemp)
 	dir=$(mktemp -d)
 	$BAZEL --output_user_root="$dir" build "$target" >"$txt" 2>&1
 	errcode=$?
 	rm -rf "$dir"
-	sed 's%^    "version": "",$%    "version": "zero",%' $L >$L.$uid && mv $L.$uid $L
+
+	Lock
+
 	if [ $errcode -ne 0 ]; then
 		rm "$txt"
 		echo "Failed to run $BAZEL build $target"
 		return $errcode
 	fi
-	printf 'locked = {\n' >$L.$uid
-	printf '    "version": "zero",\n' >>$L.$uid
-	printf '    "repositories": {},\n' >>$L.$uid
-	printf '}\n' >>$L.$uid
 
+	# Catch reproduciblility suggestions
 	(cat "$txt" && rm "$txt") \
 	| grep -F 'indicated that a canonical reproducible form can be obtained' \
 	| while read -r line; do
@@ -52,44 +83,16 @@ upgrade() {
 		pinned=${pinned% }
 
 		kind=$(git grep -h -B1 -F 'name = "'$name'",' -- $W | head -n1 | sed 's%(%%')
-		case "$kind" in
-			http_archive)
-				url=$(get_string_field "$name" url)
-				upgrades_slug=$(get_string_field "$name" upgrades_slug || '')
-				if [ -n "$url" ]; then
-					if [ -n "$upgrades_slug" ]; then
-						echo "Exactly one of url, or upgrades_slug must be provided"
-						errcode=1
-						break
-					fi
-					# Pin http_archive's sha256 given url
-					lock "$name" "$pinned" >>$L.$uid
-					continue
-				fi
-				upgrade_constraint=$(get_string_field "$name" upgrade_constraint || '')
-				type=$(get_string_field "$name" type || '')
-				url=$(curl -#fSL "https://api.github.com/repos/$upgrades_slug/releases" \
-					| jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
-					| grep "$type$" \
-					| head -n1)
-				sha256=$(curl -#fSL "$url" | awk '{print $1}')
-				lock "$name" "\"url\": \"$url\", \"sha256\": \"$sha256\"" >>$L.$uid
-				;;
-			git_repository)
-				# Pin git_repository's commit given tag or branch
-				lock "$name" "$pinned" >>$L.$uid
-				;;
-			*)
-				echo "Unsupported rule kind $kind"
-				errcode=1
-				break
-				;;
-		esac
+		if [ "$kind" = 'http_archive' ]; then
+			url=$(GetStringField "$name" url || '')
+			# If upgraded, use lockfile to resolve url
+			[ -z "$url" ] && pinned="\"url\": locked["repositories"]["$name"][\"url\"], $pinned"
+		fi
+		Pin "$name" "$pinned"
 		[ $errcode -eq 0 ] && echo "Locked $kind(name = \"$name\", ...)"
 	done
 
 	if [ $errcode -eq 0 ]; then
-		mv $L.$uid $L
 		command -v buildifier >/dev/null 2>&1 && buildifier -lint=fix $L
 	fi
 	return $errcode
@@ -97,8 +100,8 @@ upgrade() {
 
 [ $# -ne 1 ] && echo "Usage: $0  <target to upgrade>" && exit 1
 
-if [ -f $W ] && grep -F ' = locked,' -- $W >/dev/null; then
-	upgrade "$1"
+if grep -F ' = locked,' -- $W >/dev/null; then
+	UnlockLock "$1"
 else
 	echo "No $W relying on lockfile here."
 	exit 1
