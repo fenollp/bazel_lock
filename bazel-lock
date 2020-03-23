@@ -1,4 +1,4 @@
-#!/bin/sh -eu
+#!/bin/sh -u
 
 [ $# -ne 1 ] && echo "Usage: $0  <target to upgrade>" && exit 1
 target=$1
@@ -16,55 +16,50 @@ GetStringField() {
 	| awk -v FS='"' '{print $2;}'
 }
 
-Lock() {
-	sed 's%^    "version": "",$%    "version": "zero",%' $L >$L~ && mv $L~ $L
-}
-
-Unlock() {
-	sed 's%^    "version": "zero",$%    "version": "",%' $L >$L~ && mv $L~ $L
-}
-
 Pin() {
-	printf 'locked["repositories"]["%s"] = {%s}\n' "$1" "$2" >>$L
+	printf 'locked["%s"] = {%s}\n' "$1" "$2" >>$L
 }
 
+errcode=0
 
 if [ ! -f $W ]; then
 	echo "No Bazel $W in $PWD"
-	exit 1
+	errcode=1
 fi
+[ $errcode -ne 0 ] && exit $errcode
 
-if [ ! -f $L ]; then
-	echo 'locked = {' >$L
-	echo '    "version": "zero",' >>$L
-	echo '    "repositories": {},' >>$L
-	echo '}' >>$L
-fi
+echo 'locked = {}' >$L
 
-Unlock
 # Upgrade what needs to be resolved
-for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS='"' '{print $2}'); do
+grep -A1 -F 'http_archive(' -- $W \
+| grep -F ' name = ' \
+| awk -v FS='"' '{print $2}' \
+| while read -r name; do
 	upgrades_slug=$(GetStringField "$name" upgrades_slug || '')
 	[ -z "$upgrades_slug" ] && continue
 	type=$(GetStringField "$name" type || '')
-	url=$(curl -#fSL "https://api.github.com/repos/$upgrades_slug/releases" \
+	github_releases=https://api.github.com/repos/"$upgrades_slug"/releases
+	url=$(curl -#fSL "$github_releases" \
 		| jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
 		| grep "$type$" \
 		| head -n1)
+	if [ -z "$url" ]; then
+		echo "Failed fetching $github_releases"
+		errcode=1
+		exit $errcode
+	fi
 	# TODO: upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '')
 	Pin "$name" "\"url\": \"$url\""
 done
-Lock
 
 # Run build
 txt=$(mktemp)
 dir=$(mktemp -d)
-errcode=0
-if ! $BAZEL --output_user_root="$dir" build "$target" >"$txt" 2>&1; then
-	errcode=$?
-fi
-rm -rf "$dir"
+$BAZEL --output_user_root="$dir" build "$target" >"$txt" 2>&1
+errcode=$?
+rm -rf "$dir" >/dev/null 2>&1 || true  # Silence errors for Windows
 if [ $errcode -ne 0 ]; then
+	cat "$txt"
 	rm "$txt"
 	echo "Failed to run $BAZEL build $target"
 	exit $errcode
@@ -83,11 +78,11 @@ fi
 	pinned=${pinned# }
 	pinned=${pinned% }
 
-	kind=$(git grep -h -B1 -F 'name = "'$name'",' -- $W | head -n1 | sed 's%(%%')
+	kind=$(git grep -h -B1 -F "name = \"$name\"," -- $W | head -n1 | sed 's%(%%')
 	if [ "$kind" = 'http_archive' ]; then
 		url=$(GetStringField "$name" url || '')
 		# If upgraded, use lockfile to resolve url
-		[ -z "$url" ] && pinned="\"url\": locked[\"repositories\"][\"$name\"][\"url\"], $pinned"
+		[ -z "$url" ] && pinned="\"url\": locked[\"$name\"][\"url\"], $pinned"
 	fi
 	Pin "$name" "$pinned"
 	[ $errcode -eq 0 ] && echo "Locked $kind(name = \"$name\", ...)"

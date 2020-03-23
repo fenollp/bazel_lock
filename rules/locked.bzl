@@ -1,82 +1,111 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", _http_archive = "http_archive")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", _git_repository = "git_repository")
 
-_LOCKER = " Please run `./bazel lock` first."
-
 def _nonempty_string(x):
     return type(x) == type("") and len(x) > 0
 
-def _impl(impl, kwargs, to_pop):
-    # Fields that must be here
+def _named(kwargs):
     name = kwargs.get("name")
-    if name == None:
+    if not _nonempty_string(name):
         fail(msg = "Field must be present", attr = "name")
+    return name
 
-    locked = kwargs.pop("locked", None)
-    if locked == None:
-        fail(msg = "Field is required", attr = "locked")
+def _err(name, msg):
+    fail("Repository @{} {}".format(name, msg))
 
-    version = locked.get("version")
-    if not _nonempty_string(version):
-        # Most definitely called from "bazel-lock"
-        for field in to_pop:
+def _unrequire(name, fields, kwargs):
+    for field in fields:
+        if field in kwargs:
+            _err(name, "requires field '{}' to not be present".format(field))
+
+def _contains_any_of(keys, kvs):
+    for key in keys:
+        if key in kvs:
+            return True
+    return False
+
+def _impl(**implkwargs):
+    impl = implkwargs.pop("impl")
+    name = implkwargs.pop("name")
+    kwargs = implkwargs.pop("kwargs")
+    if_contains = implkwargs.pop("if_contains")
+    then_pop = implkwargs.pop("then_pop")
+    fail_if_missing_any_of = implkwargs.pop("fail_if_missing_any_of")
+
+    # Fields that must be here
+    if "locked" not in kwargs:
+        _err(name, "requires field 'locked' to be provided")
+    locked = kwargs.pop("locked")
+    if type(locked) != type({}):
+        _err(name, "requires field 'locked' to be a dict")
+
+    pinned = locked.get(name, {})
+    kwargs.update(pinned)
+
+    if if_contains in kwargs:
+        for field in then_pop:
             if field in kwargs:
                 kwargs.pop(field)
-        print("Locking in progress... kwargs:{}".format(kwargs))
-        return impl(**kwargs)
-    elif version == "zero":
-        # Remove fields that are not required once the lockfile is in place
-        for field in to_pop:
-            if field in kwargs:
-                kwargs.pop(field)
 
-        pinned = locked.get("repositories", {}).get(name, {})
-        if len(pinned) == 0:
-            fail("Unlocked dependency {!r}.".format(name) + _LOCKER)
-        kwargs.update(pinned)
-        return impl(**kwargs)
-    else:
-        fail("locked: unsupported version {!r}".format(version))
+    if not _contains_any_of(fail_if_missing_any_of, kwargs):
+        _err(name, "is unlocked. Please run bazel-lock first.")
+
+    return impl(**kwargs)
 
 def http_archive(**kwargs):
-    # Fields that must not be here
-    if "sha256" in kwargs:
-        fail(msg = "Field must not be present", attr = "sha256")
+    name = _named(kwargs)
+    _unrequire(name, ["sha256"], kwargs)
 
     # Fields that must be here
-    url = kwargs.get("url")
-    upgrades_slug = kwargs.get("upgrades_slug")
-    if _nonempty_string(url) and _nonempty_string(upgrades_slug):
-        fail("Fields url and upgrades_slug are mutually exclusive")
-    elif _nonempty_string(url):
+    has_url = _nonempty_string(kwargs.get("url"))
+    has_upgrades_slug = _nonempty_string(kwargs.get("upgrades_slug"))
+    if has_url and has_upgrades_slug:
+        _err(name, "requires exactly one of 'url' or 'upgrades_slug' to be provided")
+    elif has_url:
         pass
-    elif _nonempty_string(upgrades_slug):
+    elif has_upgrades_slug:
         pass
     else:
-        fail(msg = "Field must be present", attr = "url")
+        _err(name, "is unlocked. Please run bazel-lock first.")
 
-    return _impl(_http_archive, kwargs, [
-        "upgrades_slug",
-        "upgrade_constraint",
-    ])
+    return _impl(
+        impl = _http_archive,
+        name = name,
+        kwargs = kwargs,
+        if_contains = "url",
+        then_pop = [
+            "upgrades_slug",
+            "upgrade_constraint",
+        ],
+        fail_if_missing_any_of = [
+            "url",
+        ],
+    )
 
 def git_repository(**kwargs):
-    # Fields that must not be here
-    if "commit" in kwargs:
-        fail(msg = "Field must not be present", attr = "commit")
+    name = _named(kwargs)
+    _unrequire(name, ["commit"], kwargs)
 
     # Fields that must be here
-    remote = kwargs.get("remote")
-    if not _nonempty_string(remote):
-        fail(msg = "Field must be present", attr = "remote")
-    tag = kwargs.get("tag")
-    branch = kwargs.get("branch")
-    if _nonempty_string(tag) and _nonempty_string(branch):
-        fail("Fields tag and branch cannot both be set")
-    if not (_nonempty_string(tag) or _nonempty_string(branch)):
-        fail("Field tag or branch must be set")
+    if "remote" not in kwargs:
+        _err(name, "requires string field 'remote' to be provided")
+    has_tag = "tag" in kwargs
+    has_branch = "branch" in kwargs
+    if has_tag and has_branch or not (has_tag or has_branch):
+        _err(name, "requires exactly one of 'tag' or 'branch' to be provided")
 
-    return _impl(_git_repository, kwargs, [
-        "tag",
-        "branch",
-    ])
+    return _impl(
+        impl = _git_repository,
+        name = name,
+        kwargs = kwargs,
+        if_contains = "commit",
+        then_pop = [
+            "tag",
+            "branch",
+        ],
+        fail_if_missing_any_of = [
+            "commit",
+            "tag",
+            "branch",
+        ],
+    )
