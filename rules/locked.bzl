@@ -19,6 +19,9 @@ def _impl(impl, kwargs, to_pop):
     version = locked.get("version")
     if not _nonempty_string(version):
         # Most definitely called from "bazel-lock"
+        for field in to_pop:
+            if field in kwargs:
+                kwargs.pop(field)
         print("Locking in progress... kwargs:{}".format(kwargs))
         return impl(**kwargs)
     elif version == "zero":

@@ -1,5 +1,8 @@
 #!/bin/sh -eu
 
+[ $# -ne 1 ] && echo "Usage: $0  <target to upgrade>" && exit 1
+target=$1
+
 # This tool is just to demonstrate a possible usage.
 # Ideally this is part of Bazel itself, replacing these hacks.
 
@@ -25,84 +28,75 @@ Pin() {
 	printf 'locked["repositories"]["%s"] = {%s}\n' "$1" "$2" >>$L
 }
 
-UnlockLock() {
-	target="$1"; shift
-	if [ ! -f $W ]; then
-		echo "No Bazel $W in $PWD"
-		return 1
-	fi
 
-	if [ ! -f $L ]; then
-		echo 'locked = {' >$L
-		echo '    "version": "zero",' >>$L
-		echo '    "repositories": {},' >>$L
-		echo '}' >>$L
-	fi
-
-	Unlock
-
-	# Upgrade what needs to be resolved
-	for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS='"' '{print $2}'); do
-		upgrades_slug=$(GetStringField "$name" upgrades_slug || '')
-		[ -z "$upgrades_slug" ] && continue
-		type=$(GetStringField "$name" type || '')
-		url=$(curl -#fSL "https://api.github.com/repos/$upgrades_slug/releases" \
-			| jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
-			| grep "$type$" \
-			| head -n1)
-		# TODO: upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '')
-		Pin "$name" "\"url\": \"$url\""
-	done
-
-	# Run build
-	txt=$(mktemp)
-	dir=$(mktemp -d)
-	$BAZEL --output_user_root="$dir" build "$target" >"$txt" 2>&1
-	errcode=$?
-	rm -rf "$dir"
-
-	Lock
-
-	if [ $errcode -ne 0 ]; then
-		rm "$txt"
-		echo "Failed to run $BAZEL build $target"
-		return $errcode
-	fi
-
-	# Catch reproduciblility suggestions
-	(cat "$txt" && rm "$txt") \
-	| grep -F 'indicated that a canonical reproducible form can be obtained' \
-	| while read -r line; do
-		name=$(echo "$line" | awk -v FS="'" '{print $2;}')
-
-		pinned=$(echo "$line" \
-				| awk -v FS='and dropping' '{print $1;}' \
-				| awk -v FS='modifying arguments' '{print $2;}' \
-				| sed -E 's% ([^ ]+) =% "\1":%g')
-		pinned=${pinned# }
-		pinned=${pinned% }
-
-		kind=$(git grep -h -B1 -F 'name = "'$name'",' -- $W | head -n1 | sed 's%(%%')
-		if [ "$kind" = 'http_archive' ]; then
-			url=$(GetStringField "$name" url || '')
-			# If upgraded, use lockfile to resolve url
-			[ -z "$url" ] && pinned="\"url\": locked["repositories"]["$name"][\"url\"], $pinned"
-		fi
-		Pin "$name" "$pinned"
-		[ $errcode -eq 0 ] && echo "Locked $kind(name = \"$name\", ...)"
-	done
-
-	if [ $errcode -eq 0 ]; then
-		command -v buildifier >/dev/null 2>&1 && buildifier -lint=fix $L
-	fi
-	return $errcode
-}
-
-[ $# -ne 1 ] && echo "Usage: $0  <target to upgrade>" && exit 1
-
-if grep -F ' = locked,' -- $W >/dev/null; then
-	UnlockLock "$1"
-else
-	echo "No $W relying on lockfile here."
+if [ ! -f $W ]; then
+	echo "No Bazel $W in $PWD"
 	exit 1
 fi
+
+if [ ! -f $L ]; then
+	echo 'locked = {' >$L
+	echo '    "version": "zero",' >>$L
+	echo '    "repositories": {},' >>$L
+	echo '}' >>$L
+fi
+
+Unlock
+
+# Upgrade what needs to be resolved
+for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS='"' '{print $2}'); do
+	upgrades_slug=$(GetStringField "$name" upgrades_slug || '')
+	[ -z "$upgrades_slug" ] && continue
+	type=$(GetStringField "$name" type || '')
+	url=$(curl -#fSL "https://api.github.com/repos/$upgrades_slug/releases" \
+		| jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
+		| grep "$type$" \
+		| head -n1)
+	# TODO: upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '')
+	Pin "$name" "\"url\": \"$url\""
+done
+
+# Run build
+txt=$(mktemp)
+dir=$(mktemp -d)
+errcode=0
+if ! $BAZEL --output_user_root="$dir" build "$target" >"$txt" 2>&1; then
+	errcode=$?
+fi
+rm -rf "$dir"
+
+Lock
+
+if [ $errcode -ne 0 ]; then
+	rm "$txt"
+	echo "Failed to run $BAZEL build $target"
+	exit $errcode
+fi
+
+# Catch reproduciblility suggestions
+(cat "$txt" && rm "$txt") \
+| grep -F 'indicated that a canonical reproducible form can be obtained' \
+| while read -r line; do
+	name=$(echo "$line" | awk -v FS="'" '{print $2;}')
+
+	pinned=$(echo "$line" \
+			| awk -v FS='and dropping' '{print $1;}' \
+			| awk -v FS='modifying arguments' '{print $2;}' \
+			| sed -E 's% ([^ ]+) =% "\1":%g')
+	pinned=${pinned# }
+	pinned=${pinned% }
+
+	kind=$(git grep -h -B1 -F 'name = "'$name'",' -- $W | head -n1 | sed 's%(%%')
+	if [ "$kind" = 'http_archive' ]; then
+		url=$(GetStringField "$name" url || '')
+		# If upgraded, use lockfile to resolve url
+		[ -z "$url" ] && pinned="\"url\": locked["repositories"]["$name"][\"url\"], $pinned"
+	fi
+	Pin "$name" "$pinned"
+	[ $errcode -eq 0 ] && echo "Locked $kind(name = \"$name\", ...)"
+done
+
+if [ $errcode -eq 0 ]; then
+	command -v buildifier >/dev/null 2>&1 && buildifier -lint=fix $L
+fi
+exit $errcode
