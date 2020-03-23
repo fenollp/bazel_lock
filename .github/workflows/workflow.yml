@@ -61,23 +61,36 @@ jobs:
     - uses: actions/checkout@v2
     # Running locked
     - run: cd example_http_archive_bare && $BAZEL run hello
+      shell: bash
     - run: cd example_http_archive_locked && $BAZEL run hello
+      shell: bash
     - run: cd example_http_archive_locked_upgradable && $BAZEL run hello
+      shell: bash
     - run: cd example_git_repository_bare && $BAZEL run hello
+      shell: bash
     - run: cd example_git_repository_locked && $BAZEL run hello
+      shell: bash
     - run: git --no-pager diff && [ 0 -eq "$(git diff | wc -l)" ]
       shell: bash
     # Updating dependencies
     - run: $BAZEL clean --expunge
+      shell: bash
     - run: cd example_http_archive_locked && ../bazel-lock hello
+      shell: bash
     - run: cd example_git_repository_locked && ../bazel-lock hello
+      shell: bash
     - run: git --no-pager diff && [ 0 -eq "$(git diff | wc -l)" ]
       shell: bash
     - run: cd example_http_archive_locked_upgradable && ../bazel-lock hello
+      shell: bash
     - run: git --no-pager diff && [ 8 -eq "$(git diff | wc -l)" ]
       shell: bash
     # Running unlocked
     - run: for lockfile in example_*locked*/LOCKFILE.bzl; do echo 'locked = {}'>$lockfile; done
+      shell: bash
     - run: cd example_http_archive_locked && $BAZEL run hello
+      shell: bash
     - run: cd example_http_archive_locked_upgradable && ! $BAZEL run hello
+      shell: bash
     - run: cd example_git_repository_locked && $BAZEL run hello
+      shell: bash
