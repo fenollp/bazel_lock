@@ -42,7 +42,6 @@ if [ ! -f $L ]; then
 fi
 
 Unlock
-
 # Upgrade what needs to be resolved
 for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS='"' '{print $2}'); do
 	upgrades_slug=$(GetStringField "$name" upgrades_slug || '')
@@ -55,6 +54,7 @@ for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS
 	# TODO: upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '')
 	Pin "$name" "\"url\": \"$url\""
 done
+Lock
 
 # Run build
 txt=$(mktemp)
@@ -64,9 +64,6 @@ if ! $BAZEL --output_user_root="$dir" build "$target" >"$txt" 2>&1; then
 	errcode=$?
 fi
 rm -rf "$dir"
-
-Lock
-
 if [ $errcode -ne 0 ]; then
 	rm "$txt"
 	echo "Failed to run $BAZEL build $target"
@@ -90,7 +87,7 @@ fi
 	if [ "$kind" = 'http_archive' ]; then
 		url=$(GetStringField "$name" url || '')
 		# If upgraded, use lockfile to resolve url
-		[ -z "$url" ] && pinned="\"url\": locked["repositories"]["$name"][\"url\"], $pinned"
+		[ -z "$url" ] && pinned="\"url\": locked[\"repositories\"][\"$name\"][\"url\"], $pinned"
 	fi
 	Pin "$name" "$pinned"
 	[ $errcode -eq 0 ] && echo "Locked $kind(name = \"$name\", ...)"
