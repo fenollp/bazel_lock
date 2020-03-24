@@ -81,6 +81,8 @@ fi
 	case "$kind" in
 		http_archive)
 			url=$(GetStringField "$name" url || '')
+			upgrades_slug=$(GetStringField "$name" upgrades_slug || '')
+			upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '')
 			key="$kind> $url $upgrades_slug $upgrade_constraint"
 			# If upgraded, use lockfile to resolve url
 			if [ -z "$url" ]; then
