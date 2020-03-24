@@ -31,10 +31,8 @@ fi
 echo 'locked = {}' >$L
 
 # Upgrade what needs to be resolved
-grep -A1 -F 'http_archive(' -- $W \
-| grep -F ' name = ' \
-| awk -v FS='"' '{print $2}' \
-| while read -r name; do
+# shellcheck disable=SC2013
+for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS='"' '{print $2}'); do
 	upgrades_slug=$(GetStringField "$name" upgrades_slug || '')
 	[ -z "$upgrades_slug" ] && continue
 	type=$(GetStringField "$name" type || '')
@@ -46,11 +44,11 @@ grep -A1 -F 'http_archive(' -- $W \
 	if [ -z "$url" ]; then
 		echo "Failed fetching $github_releases"
 		errcode=1
-		exit $errcode
 	fi
 	# TODO: upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '')
 	Pin "$name" "\"url\": \"$url\""
 done
+[ $errcode -ne 0 ] && exit $errcode
 
 # Run build
 txt=$(mktemp)
@@ -59,6 +57,7 @@ $BAZEL --output_user_root="$dir" build "$target" >"$txt" 2>&1
 errcode=$?
 rm -rf "$dir" >/dev/null 2>&1 || true  # Silence errors for Windows
 if [ $errcode -ne 0 ]; then
+	cat $L
 	cat "$txt"
 	rm "$txt"
 	echo "Failed to run $BAZEL build $target"
@@ -88,7 +87,6 @@ fi
 	echo "Locked $kind(name = \"$name\", ...)"
 done
 
-# Uses json.dumps to fmt with double quotes
 pretty=$(mktemp)
 cat << EOF >"$pretty"
 from __future__ import print_function
@@ -97,9 +95,10 @@ EOF
 cat $L >>"$pretty"
 cat << EOF >>"$pretty"
 print('locked = {}')
-for k, v in locked.items():
+for k in sorted(locked):
+	# Uses json.dumps to fmt with double quotes
+	v = json.dumps(locked[k], sort_keys=True)
 	k = json.dumps(k)
-	v = json.dumps(v, sort_keys=True)
 	print('locked[{}] = {}'.format(k, v))
 EOF
 python "$pretty" >$L
