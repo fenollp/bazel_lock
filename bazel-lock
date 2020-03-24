@@ -45,8 +45,8 @@ for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS
 		echo "Failed fetching $github_releases"
 		errcode=1
 	fi
-	# TODO: upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '')
-	Pin "$name" "\"url\": \"$url\""
+	upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '') # TODO: enforce contraint
+	Pin "http_archive>  $upgrades_slug $upgrade_constraint" "\"url\": \"$url\""
 done
 [ $errcode -ne 0 ] && exit $errcode
 
@@ -78,12 +78,26 @@ fi
 	pinned=${pinned% }
 
 	kind=$(git grep -h -B1 -F "name = \"$name\"," -- $W | head -n1 | sed 's%(%%')
-	if [ "$kind" = 'http_archive' ]; then
-		url=$(GetStringField "$name" url || '')
-		# If upgraded, use lockfile to resolve url
-		[ -z "$url" ] && pinned="\"url\": locked[\"$name\"][\"url\"], $pinned"
-	fi
-	Pin "$name" "$pinned"
+	case "$kind" in
+		http_archive)
+			url=$(GetStringField "$name" url || '')
+			key="$kind> $url $upgrades_slug $upgrade_constraint"
+			# If upgraded, use lockfile to resolve url
+			if [ -z "$url" ]; then
+				Pin "$key" "\"url\": locked[\"$key\"][\"url\"], $pinned"
+			else
+				Pin "$key" "$pinned"
+			fi
+			;;
+		git_repository)
+			tag=$(GetStringField "$name" tag)
+			branch=$(GetStringField "$name" branch)
+			remote=$(GetStringField "$name" remote)
+			Pin "$kind> $tag $branch $remote" "$pinned"
+			;;
+		*)
+			echo "Unhandled rule '$kind'" && exit 2
+	esac
 	echo "Locked $kind(name = \"$name\", ...)"
 done
 

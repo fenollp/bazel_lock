@@ -24,6 +24,12 @@ def _contains_any_of(keys, kvs):
             return True
     return False
 
+def _cache_key(keys, kwargs, impl):
+    s = "{}".format(impl).split("%")[-1]
+    for key in keys:
+        s += " {}".format(kwargs.get(key, ""))
+    return s
+
 def _impl(**implkwargs):
     impl = implkwargs.pop("impl")
     name = implkwargs.pop("name")
@@ -31,6 +37,7 @@ def _impl(**implkwargs):
     if_contains = implkwargs.pop("if_contains")
     then_pop = implkwargs.pop("then_pop")
     fail_if_missing_any_of = implkwargs.pop("fail_if_missing_any_of")
+    cache_key_from = implkwargs.pop("cache_key_from")
 
     # Fields that must be here
     if "locked" not in kwargs:
@@ -39,7 +46,8 @@ def _impl(**implkwargs):
     if type(locked) != type({}):
         _err(name, "requires field 'locked' to be a dict")
 
-    pinned = locked.get(name, {})
+    key = _cache_key(cache_key_from, kwargs, impl)
+    pinned = locked.get(key, {})
     kwargs.update(pinned)
 
     if if_contains in kwargs:
@@ -80,6 +88,11 @@ def http_archive(**kwargs):
         fail_if_missing_any_of = [
             "url",
         ],
+        cache_key_from = [
+            "url",
+            "upgrades_slug",
+            "upgrade_constraint",
+        ],
     )
 
 def git_repository(**kwargs):
@@ -107,5 +120,10 @@ def git_repository(**kwargs):
             "commit",
             "tag",
             "branch",
+        ],
+        cache_key_from = [
+            "tag",
+            "branch",
+            "remote",
         ],
     )
