@@ -1,4 +1,4 @@
-#!/bin/sh -u
+#!/bin/sh -ux
 
 [ $# -ne 1 ] && echo "Usage: $0  <target to upgrade>" && exit 1
 
@@ -58,7 +58,6 @@ for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS
 	upgrades_slug=$(GetStringField "$name" upgrades_slug || '')
 	[ -z "$upgrades_slug" ] && continue
 	kind=http_archive; echo "Upgrading $kind(name = \"$name\", ...)"
-	type=$(GetStringField "$name" type || '')
 	upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '') # TODO: enforce contraint
 	gh_releases_url=https://api.github.com/repos/"$upgrades_slug"/releases
 	curled=$(mktemp)
@@ -68,16 +67,18 @@ for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS
 		errcode=1
 		continue
 	fi
+	type=$(GetStringField "$name" type || '')
+	echo '### type = ' ."$type".
 	echo '### jq'
 	jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
 	<"$curled"
 	echo '### jq|grep'
 	jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
 	<"$curled" \
-	| grep -E "$type$"
+	| grep -P "$type$"
 	url=$(jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
 		<"$curled" \
-		| grep -E "$type$" \
+		| grep -P "$type$" \
 		| head -n1)
 	rm "$curled"
 	if [ -z "$url" ]; then
