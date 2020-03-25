@@ -1,4 +1,4 @@
-#!/bin/sh -ux
+#!/bin/sh -u
 
 [ $# -ne 1 ] && echo "Usage: $0  <target to upgrade>" && exit 1
 target=$1
@@ -22,7 +22,7 @@ Pin() {
 
 GitHubCurl() {
 	if [ -n "${GITHUB_TOKEN:-}" ]; then
-		curl -#fSL -H "Authorization: token $GITHUB_TOKEN" "$@"
+		curl -#fSL -H "authorization: token $GITHUB_TOKEN" "$@"
 	else
 		curl -#fSL "$@"
 	fi
