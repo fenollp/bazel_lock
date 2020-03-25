@@ -1,7 +1,6 @@
 #!/bin/sh -u
 
 [ $# -ne 1 ] && echo "Usage: $0  <target to upgrade>" && exit 1
-target=$1
 
 # This tool is just to demonstrate a possible usage.
 # Ideally this is part of Bazel itself, replacing these hacks.
@@ -20,11 +19,26 @@ Pin() {
 	printf 'locked["%s"] = {%s}\n' "$1" "$2" >>$L
 }
 
+KeyHTTPArchive() {
+    url=$1; shift
+    upgrades_slug=$1; shift
+    upgrade_constraint=$1; shift
+    echo "http_archive> $url $upgrades_slug $upgrade_constraint"
+}
+
+KeyGitRepository() {
+    tag=$1; shift
+    branch=$1; shift
+    remote=$1; shift
+    echo "git_repository> $tag $branch $remote"
+}
+
 GitHubCurl() {
+	o=$1; shift
 	if [ -n "${GITHUB_TOKEN:-}" ]; then
-		curl -#fSL -H "authorization: token $GITHUB_TOKEN" "$@"
+		curl -#fSLo "$o" -H "authorization: token $GITHUB_TOKEN" "$@"
 	else
-		curl -#fSL "$@"
+		curl -#fSLo "$o" "$@"
 	fi
 }
 
@@ -43,32 +57,41 @@ echo 'locked = {}' >$L
 for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS='"' '{print $2}'); do
 	upgrades_slug=$(GetStringField "$name" upgrades_slug || '')
 	[ -z "$upgrades_slug" ] && continue
+	kind=http_archive; echo "Upgrading $kind(name = \"$name\", ...)"
 	type=$(GetStringField "$name" type || '')
 	upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '') # TODO: enforce contraint
 	gh_releases_url=https://api.github.com/repos/"$upgrades_slug"/releases
-	url=$(GitHubCurl "$gh_releases_url" \
-		| jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
-		| grep "$type$" \
-		| head -n1)
-	if [ -z "$url" ]; then
+	curled=$(mktemp)
+	if ! GitHubCurl "$curled" "$gh_releases_url"; then
+		rm "$curled"
 		echo "Failed fetching $gh_releases_url"
 		errcode=1
+		continue
 	fi
-	Pin "http_archive>  $upgrades_slug $upgrade_constraint" "\"url\": \"$url\""
+	url=$(jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
+		<"$curled" \
+		| grep "$type$" \
+		| head -n1)
+	rm "$curled"
+	if [ -z "$url" ]; then
+		echo "No release of $upgrades_slug matches constraints $upgrade_constraint"
+		errcode=1
+		continue
+	fi
+	Pin "$(KeyHTTPArchive '' "$upgrades_slug" "$upgrade_constraint")" "\"url\": \"$url\""
 done
 [ $errcode -ne 0 ] && exit $errcode
 
 # Run build
 txt=$(mktemp)
-dir=$(mktemp -d)
-$BAZEL --output_user_root="$dir" build "$target" >"$txt" 2>&1
+$BAZEL clean --expunge >/dev/null 2>&1 || true
+$BAZEL build "$@" >"$txt" 2>&1
 errcode=$?
-rm -rf "$dir" >/dev/null 2>&1 || true  # Silence errors for Windows
 if [ $errcode -ne 0 ]; then
 	cat $L
 	cat "$txt"
 	rm "$txt"
-	echo "Failed to run $BAZEL build $target"
+	echo "Failed to run $BAZEL build $@"
 	exit $errcode
 fi
 
@@ -91,7 +114,7 @@ fi
 			url=$(GetStringField "$name" url || '')
 			upgrades_slug=$(GetStringField "$name" upgrades_slug || '')
 			upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '')
-			key="$kind> $url $upgrades_slug $upgrade_constraint"
+			key="$(KeyHTTPArchive "$url" "$upgrades_slug" "$upgrade_constraint")"
 			# If upgraded, use lockfile to resolve url
 			if [ -z "$url" ]; then
 				Pin "$key" "\"url\": locked[\"$key\"][\"url\"], $pinned"
@@ -103,7 +126,7 @@ fi
 			tag=$(GetStringField "$name" tag)
 			branch=$(GetStringField "$name" branch)
 			remote=$(GetStringField "$name" remote)
-			Pin "$kind> $tag $branch $remote" "$pinned"
+			Pin "$(KeyGitRepository	"$tag" "$branch" "$remote")" "$pinned"
 			;;
 		*)
 			echo "Unhandled rule '$kind'" && exit 2
