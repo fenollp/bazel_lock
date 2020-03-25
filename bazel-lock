@@ -68,18 +68,25 @@ for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS
 		errcode=1
 		continue
 	fi
+	echo '### curled'
+	cat "$curled"
+	echo '### jq'
+	jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
+	<"$curled"
+	echo '### jq|grep'
+	jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
+	<"$curled" \
+	| grep "$type$"
 	url=$(jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
 		<"$curled" \
 		| grep "$type$" \
 		| head -n1)
+	rm "$curled"
 	if [ -z "$url" ]; then
-		cat "$curled"
-		rm "$curled"
 		echo "No release of $upgrades_slug match constraints $upgrade_constraint"
 		errcode=1
 		continue
 	fi
-	rm "$curled"
 	Pin "$(KeyHTTPArchive '' "$upgrades_slug" "$upgrade_constraint")" "\"url\": \"$url\""
 done
 [ $errcode -ne 0 ] && exit $errcode
