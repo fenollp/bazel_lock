@@ -20,6 +20,14 @@ Pin() {
 	printf 'locked["%s"] = {%s}\n' "$1" "$2" >>$L
 }
 
+GitHubCurl() {
+	if [ -n "${GITHUB_TOKEN:-}" ]; then
+		curl -#fSL -H "Authorization: token $GITHUB_TOKEN" "$@"
+	else
+		curl -#fSL "$@"
+	fi
+}
+
 errcode=0
 
 if [ ! -f $W ]; then
@@ -38,9 +46,7 @@ for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS
 	type=$(GetStringField "$name" type || '')
 	upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '') # TODO: enforce contraint
 	gh_releases_url=https://api.github.com/repos/"$upgrades_slug"/releases
-	auth=
-	[ -n "${GITHUB_TOKEN:-}" ] && auth="-H 'Authorization: token $GITHUB_TOKEN'"
-	url=$(curl $auth -#fSL "$gh_releases_url" \
+	url=$(GitHubCurl "$gh_releases_url" \
 		| jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
 		| grep "$type$" \
 		| head -n1)
