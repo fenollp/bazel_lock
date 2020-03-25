@@ -1,4 +1,4 @@
-#!/bin/sh -u
+#!/bin/sh -ux
 
 [ $# -ne 1 ] && echo "Usage: $0  <target to upgrade>" && exit 1
 target=$1
@@ -13,7 +13,7 @@ L=LOCKFILE.bzl
 GetStringField() {
 	git grep -h -A999 -F "name = \"$1\"," -- $W \
 	| grep -F "    $2 = " \
-	| awk -v FS='"' '{print $2;}'
+	| awk -v FS='"' '{print $2}'
 }
 
 Pin() {
@@ -36,18 +36,18 @@ for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS
 	upgrades_slug=$(GetStringField "$name" upgrades_slug || '')
 	[ -z "$upgrades_slug" ] && continue
 	type=$(GetStringField "$name" type || '')
-	github_releases=https://api.github.com/repos/"$upgrades_slug"/releases
+	upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '') # TODO: enforce contraint
+	gh_releases_url=https://api.github.com/repos/"$upgrades_slug"/releases
 	auth=
 	[ -n "${GITHUB_TOKEN:-}" ] && auth="-H 'authorization: Bearer $GITHUB_TOKEN'"
-	url=$(curl -#fSL $auth "$github_releases" \
+	url=$(curl $auth -#fSL "$gh_releases_url" \
 		| jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
 		| grep "$type$" \
 		| head -n1)
 	if [ -z "$url" ]; then
-		echo "Failed fetching $github_releases"
+		echo "Failed fetching $gh_releases_url"
 		errcode=1
 	fi
-	upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '') # TODO: enforce contraint
 	Pin "http_archive>  $upgrades_slug $upgrade_constraint" "\"url\": \"$url\""
 done
 [ $errcode -ne 0 ] && exit $errcode
@@ -70,11 +70,11 @@ fi
 (cat "$txt" && rm "$txt") \
 | grep -F 'indicated that a canonical reproducible form can be obtained' \
 | while read -r line; do
-	name=$(echo "$line" | awk -v FS="'" '{print $2;}')
+	name=$(echo "$line" | awk -v FS="'" '{print $2}')
 
 	pinned=$(echo "$line" \
-			| awk -v FS='and dropping' '{print $1;}' \
-			| awk -v FS='modifying arguments' '{print $2;}' \
+			| awk -v FS='and dropping' '{print $1}' \
+			| awk -v FS='modifying arguments' '{print $2}' \
 			| sed -E 's% ([^ ]+) =% "\1":%g')
 	pinned=${pinned# }
 	pinned=${pinned% }
