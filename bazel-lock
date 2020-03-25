@@ -68,18 +68,16 @@ for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS
 		errcode=1
 		continue
 	fi
-	echo '### curled'
-	cat "$curled"
 	echo '### jq'
 	jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
 	<"$curled"
 	echo '### jq|grep'
 	jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
 	<"$curled" \
-	| grep "$type$"
+	| grep -E "$type$"
 	url=$(jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
 		<"$curled" \
-		| grep "$type$" \
+		| grep -E "$type$" \
 		| head -n1)
 	rm "$curled"
 	if [ -z "$url" ]; then
