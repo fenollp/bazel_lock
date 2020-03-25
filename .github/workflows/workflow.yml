@@ -1,7 +1,9 @@
 on: push
 name: Tests
-
-env: {BAZEL: bazelisk}
+env:
+  BAZEL: bazelisk
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # For bazel-lock
+  BAZELISK_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 jobs:
   test_on_ubuntu:
     name: RUN TESTS ON ubuntu
@@ -31,7 +33,6 @@ jobs:
   test_on_macos:
     name: RUN TESTS ON macos
     runs-on: macos-latest
-    env: {BAZEL: bazel}
     steps:
     - uses: actions/checkout@v2
     # Running locked
@@ -81,9 +82,7 @@ jobs:
       shell: bash
     - run: git --no-pager diff && [ 0 -eq "$(git diff | wc -l)" ]
       shell: bash
-    - run: |
-        jq --version
-        cd example_http_archive_locked_upgradable && ../bazel-lock hello
+    - run: cd example_http_archive_locked_upgradable && ../bazel-lock hello
       shell: bash
     - run: git --no-pager diff && [ 8 -eq "$(git diff | wc -l)" ]
       shell: bash

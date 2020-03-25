@@ -37,7 +37,9 @@ for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS
 	[ -z "$upgrades_slug" ] && continue
 	type=$(GetStringField "$name" type || '')
 	github_releases=https://api.github.com/repos/"$upgrades_slug"/releases
-	url=$(curl -#fSL "$github_releases" \
+	auth=
+	[ -n "${GITHUB_TOKEN:-}" ] && auth="-H 'authorization: Bearer $GITHUB_TOKEN'"
+	url=$(curl -#fSL $auth "$github_releases" \
 		| jq -r '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
 		| grep "$type$" \
 		| head -n1)
