@@ -8,6 +8,7 @@
 BAZEL=${BAZEL:-bazel}
 W=WORKSPACE
 L=LOCKFILE.bzl
+#${BUILD_WORKSPACE_DIRECTORY:-} set when running inside Bazel
 
 GetStringField() {
 	git grep -h -A999 -F "name = \"$1\"," -- $W \
@@ -42,6 +43,31 @@ GitHubCurl() {
 	fi
 }
 
+FilterSemVer() {
+	filter=$1; shift
+	script=$(mktemp)
+	{
+		echo 'from __future__ import print_function'
+		echo 'import sys'
+	} >"$script"
+	#https://raw.githubusercontent.com/rbarrois/python-semanticversion/eda1ac8c22a99dbd01cd57fbcd459856b469ae46/semantic_version/base.py
+	cat "$(dirname "$0")"/semantic_version-eda1ac8c22a99dbd01cd57fbcd459856b469ae46.py >>"$script"
+	{
+		echo 'versions = {}'
+		echo 'for line in sys.stdin:'
+		echo '    version, url = line.rstrip().split(" ", 1)'
+		echo '    versions[Version.coerce(version)] = url'
+		echo 'selected = SimpleSpec(sys.argv[1]).select(versions)'
+		echo 'if not selected:'
+		echo '    exit(42)'
+		echo 'print(versions[selected])'
+	} >>"$script"
+	python "$script" "$filter"
+	err=$?
+	rm "$script"
+	return $err
+}
+
 errcode=0
 
 if [ ! -f $W ]; then
@@ -58,7 +84,6 @@ for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS
 	upgrades_slug=$(GetStringField "$name" upgrades_slug || '')
 	[ -z "$upgrades_slug" ] && continue
 	kind=http_archive; echo "Upgrading $kind(name = \"$name\", ...)"
-	upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '') # TODO: enforce contraint
 	gh_releases_url=https://api.github.com/repos/"$upgrades_slug"/releases
 	curled=$(mktemp)
 	if ! GitHubCurl "$curled" "$gh_releases_url"; then
@@ -67,12 +92,16 @@ for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS
 		errcode=1
 		continue
 	fi
-	url=$(jq '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
-		<"$curled" \
-		| jq ". | select(endswith(\"$(GetStringField "$name" type || '')\"))" \
-		| jq -r . \
-		| head -n1)
-	rm "$curled"
+	upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '')
+	url=$( (cat "$curled" && rm "$curled") \
+		| jq '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
+		| jq    ". | select(endswith(\"$(GetStringField "$name" type || '')\"))" \
+		| jq -r ". | select(endswith(\"$(GetStringField "$name" upgrade_constraint_url_contains || '')\"))" \
+		| while read -r gh_url; do
+			# Extract & deduplicate version-like strings
+			echo "$(echo "$gh_url" | grep -Eo '[0-9]+(\.[0-9]+)+' | sort -u) $gh_url"
+		done \
+		| FilterSemVer "$upgrade_constraint")
 	if [ -z "$url" ]; then
 		echo "No release of $upgrades_slug match constraints $upgrade_constraint"
 		errcode=1
@@ -91,7 +120,7 @@ if [ $errcode -ne 0 ]; then
 	cat $L
 	cat "$txt"
 	rm "$txt"
-	echo "Failed to run $BAZEL build $@"
+	echo "Failed to run $BAZEL build $*"
 	exit $errcode
 fi
 

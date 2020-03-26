@@ -42,15 +42,28 @@ Repeat this last action only when adding, removing or upgrading dependencies.
 
 * [http_archive](./example_http_archive_bare/WORKSPACE) example
     * compared to [bare version](./example_http_archive_locked/WORKSPACE)
-    * and to [an upgradable version](./example_http_archive_locked_upgradable/WORKSPACE)
 * [git_repository](./example_git_repository_bare/WORKSPACE) example
 	* compared to [bare version](./example_git_repository_locked/WORKSPACE)
 
+GitHub-friendly [dependency constraints](https://python-semanticversion.readthedocs.io/en/latest/reference.html#semantic_version.SimpleSpec):
+[Example WORKSPACE](./example_http_archive_locked_upgradable/WORKSPACE)
+```python
+http_archive(
+    name = "bazel_skylib",
+    locked = locked,
+    type = "tar.gz",
+    upgrade_constraint = "~=0.8",
+    upgrades_slug = "bazelbuild/bazel-skylib",
+)
+```
+
 ## Rationale
 
-Instead of setting `sha256` or `commit` kwargs in your `./WORKSPACE` file this stores these values in `./LOCKFILE.bzl`.
+Instead of setting `http_archive`'s' `sha256` or `git_repository`'s `commit` kwargs in your `./WORKSPACE` file this stores these values in `./LOCKFILE.bzl`.
 
 Then when adding or upgrading dependencies (install then) run `bazel-lock`.
+
+`bazel-lock` is similar to [`gazelle update-repos`](https://github.com/bazelbuild/bazel-gazelle) in that it writes & updates SHAs for you.
 
 ### Goals
 
@@ -68,4 +81,5 @@ Then when adding or upgrading dependencies (install then) run `bazel-lock`.
 ## Ideas for the future
 
 * First class support by creating a `bazel lock` or similar which would write to a versionable lockfile.
-* `bazel lock --upgrade <dependency>`
+    * `bazel lock --upgrade <dependency>`
+* Integrate with https://github.com/bazelbuild/bazel-gazelle#update-repos
