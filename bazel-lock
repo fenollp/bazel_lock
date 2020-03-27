@@ -81,11 +81,13 @@ fi
 echo 'locked = {}' >$L
 
 # Upgrade what needs to be resolved
+echo 'Upgrading dependencies...'
 # shellcheck disable=SC2013
 for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS='"' '{print $2}'); do
+	kind=http_archive
 	upgrades_slug=$(GetStringField "$name" upgrades_slug || '')
 	[ -z "$upgrades_slug" ] && continue
-	kind=http_archive; echo "Upgrading $kind(name = \"$name\", ...)"
+	echo "Upgrading $kind(name = \"$name\", ...)"
 	gh_releases_url=https://api.github.com/repos/"$upgrades_slug"/releases
 	curled=$(mktemp)
 	if ! GitHubCurl "$curled" "$gh_releases_url"; then
@@ -111,13 +113,26 @@ for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS
 		errcode=1
 		continue
 	fi
+	echo "Selected @$name's URL:"
+	echo "$kind("
+	echo "    name = \"$name\","
+	[ -n "$type" ] && echo "    type = \"$type\","
+	echo "    upgrades_slug = \"$upgrades_slug\","
+	[ -n "$upgrade_constraint" ] && echo "    upgrade_constraint = \"$upgrade_constraint\","
+	[ -n "$upgrade_constraint_url_contains" ] && echo "    upgrade_constraint_url_contains = \"$upgrade_constraint_url_contains\","
+	echo "    ..."
+	echo "    url = \"$url\","
+	echo ")"
+	echo
 	Pin "$(KeyHTTPArchive '' "$type" "$upgrades_slug" "$upgrade_constraint" "$upgrade_constraint_url_contains")" "\"url\": \"$url\""
 done
 [ $errcode -ne 0 ] && exit $errcode
 
 # Run build
-txt=$(mktemp)
+echo 'Cleaning some Bazel state...'
 $BAZEL clean --expunge >/dev/null 2>&1 || true
+echo 'Locking repositories...'
+txt=$(mktemp)
 $BAZEL build "$@" >"$txt" 2>&1
 errcode=$?
 if [ $errcode -ne 0 ]; then
@@ -166,7 +181,7 @@ fi
 		*)
 			echo "Unhandled rule '$kind'" && exit 2
 	esac
-	echo "Locked $kind(name = \"$name\", ...)"
+	echo "Pinned @$name"
 done
 
 pretty=$(mktemp)
