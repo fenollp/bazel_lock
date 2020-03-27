@@ -13,11 +13,6 @@ def _named(kwargs):
 def _err(name, msg):
     fail("Repository @{} {}".format(name, msg))
 
-def _unrequire(name, fields, kwargs):
-    for field in fields:
-        if field in kwargs:
-            _err(name, "requires field '{}' to not be present".format(field))
-
 def _contains_any_of(keys, kvs):
     for key in keys:
         if key in kvs:
@@ -62,7 +57,8 @@ def _impl(**implkwargs):
 
 def http_archive(**kwargs):
     name = _named(kwargs)
-    _unrequire(name, ["sha256"], kwargs)
+    if "sha256" in kwargs:
+        return _http_archive(**kwargs)
 
     # Fields that must be here
     has_url = _nonempty_string(kwargs.get("url"))
@@ -100,7 +96,8 @@ def http_archive(**kwargs):
 
 def git_repository(**kwargs):
     name = _named(kwargs)
-    _unrequire(name, ["commit"], kwargs)
+    if "commit" in kwargs:
+        return _git_repository(**kwargs)
 
     # Fields that must be here
     if "remote" not in kwargs:
