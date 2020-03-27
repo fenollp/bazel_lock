@@ -22,9 +22,11 @@ Pin() {
 
 KeyHTTPArchive() {
     url=$1; shift
+    type=$1; shift
     upgrades_slug=$1; shift
     upgrade_constraint=$1; shift
-    echo "http_archive> $url $upgrades_slug $upgrade_constraint"
+    upgrade_constraint_url_contains=$1; shift
+    echo "http_archive> $url $type $upgrades_slug $upgrade_constraint $upgrade_constraint_url_contains"
 }
 
 KeyGitRepository() {
@@ -92,11 +94,13 @@ for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS
 		errcode=1
 		continue
 	fi
+	type=$(GetStringField "$name" type || '')
 	upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '')
+	upgrade_constraint_url_contains=$(GetStringField "$name" upgrade_constraint_url_contains || '')
 	url=$( (cat "$curled" && rm "$curled") \
 		| jq '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
-		| jq    ". | select(endswith(\"$(GetStringField "$name" type || '')\"))" \
-		| jq -r ". | select(endswith(\"$(GetStringField "$name" upgrade_constraint_url_contains || '')\"))" \
+		| jq    ". | select(endswith(\"$type\"))" \
+		| jq -r ". | select(endswith(\"$upgrade_constraint_url_contains\"))" \
 		| while read -r gh_url; do
 			# Extract & deduplicate version-like strings
 			echo "$(echo "$gh_url" | grep -Eo '[0-9]+(\.[0-9]+)+' | sort -u) $gh_url"
@@ -107,7 +111,7 @@ for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS
 		errcode=1
 		continue
 	fi
-	Pin "$(KeyHTTPArchive '' "$upgrades_slug" "$upgrade_constraint")" "\"url\": \"$url\""
+	Pin "$(KeyHTTPArchive '' "$type" "$upgrades_slug" "$upgrade_constraint" "$upgrade_constraint_url_contains")" "\"url\": \"$url\""
 done
 [ $errcode -ne 0 ] && exit $errcode
 
@@ -141,9 +145,11 @@ fi
 	case "$kind" in
 		http_archive)
 			url=$(GetStringField "$name" url || '')
+			type=$(GetStringField "$name" type || '')
 			upgrades_slug=$(GetStringField "$name" upgrades_slug || '')
 			upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '')
-			key="$(KeyHTTPArchive "$url" "$upgrades_slug" "$upgrade_constraint")"
+			upgrade_constraint_url_contains=$(GetStringField "$name" upgrade_constraint_url_contains || '')
+			key="$(KeyHTTPArchive "$url" "$type" "$upgrades_slug" "$upgrade_constraint" "$upgrade_constraint_url_contains")"
 			# If upgraded, use lockfile to resolve url
 			if [ -z "$url" ]; then
 				Pin "$key" "\"url\": locked[\"$key\"][\"url\"], $pinned"

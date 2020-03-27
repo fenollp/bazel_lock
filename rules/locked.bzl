@@ -84,14 +84,17 @@ def http_archive(**kwargs):
         then_pop = [
             "upgrades_slug",
             "upgrade_constraint",
+            "upgrade_constraint_url_contains",
         ],
         fail_if_missing_any_of = [
             "url",
         ],
         cache_key_from = [
             "url",
+            "type",
             "upgrades_slug",
             "upgrade_constraint",
+            "upgrade_constraint_url_contains",
         ],
     )
 
