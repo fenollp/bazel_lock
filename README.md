@@ -57,6 +57,13 @@ http_archive(
 )
 ```
 
+## Note on hackyness
+
+This project relies on WORKSPACE files being properly formatted. See [buildifier](https://github.com/bazelbuild/buildtools/blob/master/buildifier/README.md).
+Indeed this is just a bunch of `grep`s and `awk`s. Ideally the locking would happen within Bazel.
+
+To simulate parsing a Starlark WORKSPACE a Python rewrite is possible: `eval(open('WORKSPACE'))` within a `try..except`, using caught `NameError`s as bindings (with `load()` and such predefined).
+
 ## Rationale
 
 Instead of setting `http_archive`'s' `sha256` or `git_repository`'s `commit` kwargs in your `./WORKSPACE` file this stores these values in `./LOCKFILE.bzl`.
