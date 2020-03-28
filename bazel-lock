@@ -12,15 +12,17 @@ L=LOCKFILE.bzl
 
 GetStringField() {
 	grep -m1 -h -A999 -F "name = \"$1\"," $W \
-	| grep -m1 -F "    $2 = \"" \
+	| while read -r line; do [ ')' = "$line" ] && break; echo "$line"; done \
+	| grep -m1 -F "$2 = \"" \
 	| awk -v FS='"' '{print $2}'
 }
 
 GetFirstOfListField() {
 	grep -m1 -h -A999 -F "name = \"$1\"," $W \
-	| grep -m1 -A1 -F "    $2 = [" \
+	| while read -r line; do [ ')' = "$line" ] && break; echo "$line"; done \
+	| grep -m1 -A1 -F "$2 = [" \
 	| awk -v FS='"' '{print $2}' \
-	| while read -r s; do [ -n "$s" ] && echo "$s" && break; done
+	| while read -r s; do [ -n "$s" ] && echo "$s"; done
 }
 
 Pin() {
