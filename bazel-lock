@@ -197,13 +197,13 @@ fi
 done
 
 echo Finishing up...
-pretty=$(mktemp)
-cat << EOF >"$pretty"
+script=$(mktemp)
+cat << EOF >"$script"
 from __future__ import print_function
 import json
 EOF
-cat $L >>"$pretty"
-cat << EOF >>"$pretty"
+cat $L >>"$script"
+cat << EOF >>"$script"
 print('locked = {}')
 for k in sorted(locked):
 	# Uses json.dumps to fmt with double quotes
@@ -211,7 +211,9 @@ for k in sorted(locked):
 	k = json.dumps(k)
 	print('locked[{}] = {}'.format(k, v))
 EOF
-python "$pretty" >$L
+pretty=$(mktemp)
+python "$script" >"$pretty"
 errcode=$?
-rm "$pretty"
-exit $errcode
+rm "$script"
+[ $errcode -ne 0 ] && rm "$pretty" && exit $errcode
+mv "$pretty" $L
