@@ -46,7 +46,7 @@ Repeat this last action only when adding, removing or upgrading dependencies.
 	* compared to [bare version](./example_git_repository_locked/WORKSPACE)
 
 GitHub-friendly [dependency constraints](https://python-semanticversion.readthedocs.io/en/latest/reference.html#semantic_version.SimpleSpec):
-[Example WORKSPACE](./example_http_archive_locked_upgradable/WORKSPACE)
+[Example WORKSPACE](./example_http_archive_locked_constrained/WORKSPACE)
 ```python
 http_archive(
     name = "bazel_skylib",
