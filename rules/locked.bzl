@@ -17,12 +17,13 @@ def _convenience_for_github_http_archive(kwargs):
     # Takes care of stripping root directory in github archives
     ## strip_prefix = "rules_cc-{}".format(rules_cc),
     ## urls = ["https://github.com/bazelbuild/rules_cc/archive/{}.zip".format(rules_cc)],
-    url = kwargs.get("url", "")
-    p = url.split("/")
-    if len(p) == 7 and [p[2], p[5]] == ["github.com", "archive"] and p[6].endswith(".zip"):
-        repo, zipped = p[4], p[6]
-        strip = "{}-{}".format(repo, zipped.replace(".zip", ""))
-        kwargs.update(strip_prefix = strip)
+    for url in kwargs.get("urls", []):
+        p = url.split("/")
+        if len(p) == 7 and [p[2], p[5]] == ["github.com", "archive"] and p[6].endswith(".zip"):
+            repo, zipped = p[4], p[6]
+            strip = "{}-{}".format(repo, zipped.replace(".zip", ""))
+            kwargs.update(strip_prefix = strip)
+            break
     return kwargs
 
 def _contains_any_of(keys, kvs):
@@ -34,7 +35,10 @@ def _contains_any_of(keys, kvs):
 def _cache_key(keys, kwargs, impl):
     s = "{}".format(impl).split("%")[-1]
     for key in keys:
-        s += " {}".format(kwargs.get(key, ""))
+        value = kwargs.get(key, "")
+        if key == "urls" and len(value) > 0:
+            value = value[0]
+        s += " {}".format(value)
     return s
 
 def _impl(**implkwargs):
@@ -57,6 +61,11 @@ def _impl(**implkwargs):
     pinned = locked.get(key, {})
     kwargs.update(pinned)
 
+    # http_archive: merge url & urls fields
+    url = kwargs.pop("url", None)
+    if url:
+        kwargs.update(urls = [url] + kwargs.get("urls", []))
+
     if if_contains in kwargs:
         for field in then_pop:
             if field in kwargs:
@@ -76,31 +85,26 @@ def http_archive(**kwargs):
 
     # Fields that must be here
     has_url = _nonempty_string(kwargs.get("url"))
+    has_urls = len([url for url in kwargs.get("urls", []) if _nonempty_string(url)]) != 0
     has_upgrades_slug = _nonempty_string(kwargs.get("upgrades_slug"))
-    if has_url and has_upgrades_slug:
-        _err(name, "requires exactly one of 'url' or 'upgrades_slug' to be provided")
-    elif has_url:
-        pass
-    elif has_upgrades_slug:
-        pass
-    else:
-        _err(name, "is unlocked. Please run bazel-lock first.")
+    if len([42 for b in [has_url, has_urls, has_upgrades_slug] if b]) != 1:
+        _err(name, "requires exactly one of 'url', 'urls' or 'upgrades_slug' to be provided")
 
     return _impl(
         impl = _http_archive,
         name = name,
         kwargs = kwargs,
-        if_contains = "url",
+        if_contains = "urls",
         then_pop = [
             "upgrades_slug",
             "upgrade_constraint",
             "upgrade_constraint_url_contains",
         ],
         fail_if_missing_any_of = [
-            "url",
+            "urls",
         ],
         cache_key_from = [
-            "url",
+            "urls",
             "type",
             "upgrades_slug",
             "upgrade_constraint",

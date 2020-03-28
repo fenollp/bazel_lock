@@ -12,8 +12,15 @@ L=LOCKFILE.bzl
 
 GetStringField() {
 	git grep -h -A999 -F "name = \"$1\"," -- $W \
-	| grep -F "    $2 = " \
+	| grep -m1 -F "    $2 = \"" \
 	| awk -v FS='"' '{print $2}'
+}
+
+GetFirstOfListField() {
+	git grep -h -A999 -F "name = \"$1\"," -- $W \
+	| grep -m1 -A1 -F "    $2 = [" \
+	| awk -v FS='"' '{print $2}' \
+	| while read -r s; do [ -n "$s" ] && echo "$s" && break; done
 }
 
 Pin() {
@@ -160,6 +167,9 @@ fi
 	case "$kind" in
 		http_archive)
 			url=$(GetStringField "$name" url || '')
+			if [ -z "$url" ]; then
+				url=$(GetFirstOfListField "$name" urls || '')
+			fi
 			type=$(GetStringField "$name" type || '')
 			upgrades_slug=$(GetStringField "$name" upgrades_slug || '')
 			upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '')
@@ -184,6 +194,7 @@ fi
 	echo "Pinned @$name"
 done
 
+echo Finishing up...
 pretty=$(mktemp)
 cat << EOF >"$pretty"
 from __future__ import print_function
