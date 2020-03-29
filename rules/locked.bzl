@@ -94,7 +94,17 @@ def http_archive(**kwargs):
     if "sha256" in kwargs:
         return _http_archive(**kwargs)
 
-    # Fields that must be here
+    SPECIALS = [
+        "upgrades_slug",
+        "upgrade_constraint",
+        "upgrade_constraint_url_contains",
+    ]
+
+    if "locked" not in kwargs:
+        for special in SPECIALS:
+            if special in kwargs:
+                _err(name, "is missing 'locked' field")
+
     has_url = _nonempty_string(kwargs.get("url"))
     has_urls = len([url for url in kwargs.get("urls", []) if _nonempty_string(url)]) != 0
     has_upgrades_slug = _nonempty_string(kwargs.get("upgrades_slug"))
@@ -106,21 +116,14 @@ def http_archive(**kwargs):
         name = name,
         kwargs = kwargs,
         if_contains = "urls",
-        then_pop = [
-            "upgrades_slug",
-            "upgrade_constraint",
-            "upgrade_constraint_url_contains",
-        ],
+        then_pop = SPECIALS,
         fail_if_missing_any_of = [
             "urls",
         ],
         cache_key_from = [
             "urls",
             "type",
-            "upgrades_slug",
-            "upgrade_constraint",
-            "upgrade_constraint_url_contains",
-        ],
+        ] + SPECIALS,
     )
 
 def git_repository(**kwargs):
