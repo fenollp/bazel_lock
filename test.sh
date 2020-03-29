@@ -2,7 +2,7 @@
 
 set -eu
 set -o pipefail
-git --no-pager diff && [[ 0 -eq "$(git diff | wc -l)" ]]
+git --no-pager diff -- example_* && [[ 0 -eq "$(git diff -- example_* | wc -l)" ]]
 
 echo
 echo Running locked
@@ -10,12 +10,12 @@ echo
 
 for workspace in example_*; do
 	echo
-	echo $workspace
-	pushd $workspace >/dev/null
+	echo "$workspace"
+	pushd "$workspace" >/dev/null
 	$BAZEL run hello
 	popd >/dev/null
 done
-git --no-pager diff && [[ 0 -eq "$(git diff | wc -l)" ]]
+git --no-pager diff -- example_* && [[ 0 -eq "$(git diff -- example_* | wc -l)" ]]
 
 
 echo
@@ -24,8 +24,8 @@ echo
 
 for workspace in example_*locked*; do
 	echo
-	echo $workspace
-	pushd $workspace >/dev/null
+	echo "$workspace"
+	pushd "$workspace" >/dev/null
 
 	echo 'locked = {}'>LOCKFILE.bzl
 
@@ -47,8 +47,8 @@ echo
 
 for workspace in example_*locked*; do
 	echo
-	echo $workspace
-	pushd $workspace >/dev/null
+	echo "$workspace"
+	pushd "$workspace" >/dev/null
 
 	../bazel-lock hello
 
