@@ -147,7 +147,7 @@ for kind in http_archive; do
 				| jq -r ". | select(endswith(\"$upgrade_constraint_url_contains\"))" \
 				| while read -r gh_url; do
 					# Extract & deduplicate version-like strings
-					echo "$(echo "$gh_url" | grep -Eo '[0-9]+(\.[0-9]+)+' | sort -u) $gh_url"
+					echo "$(echo "${gh_url%.*}" | grep -Eo '[0-9]+(\.[0-9]+)+' | sort -u) $gh_url"
 				done \
 				| FilterSemVer "$upgrade_constraint")
 			if [ -z "$url" ]; then
