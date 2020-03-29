@@ -63,6 +63,7 @@ This project relies on WORKSPACE files being properly formatted. See [buildifier
 Indeed this is just a bunch of `grep`s and `awk`s. Ideally the locking would happen within Bazel.
 
 To simulate parsing a Starlark WORKSPACE a Python rewrite is possible: `eval(open('WORKSPACE'))` within a `try..except`, using caught `NameError`s as bindings (with `load()` and such predefined).
+Then again this would still be a hack as `select()` and others would need emulation. See the "future" section below.
 
 ## Rationale
 
