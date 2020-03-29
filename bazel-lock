@@ -10,19 +10,28 @@ W=WORKSPACE
 L=LOCKFILE.bzl
 #${BUILD_WORKSPACE_DIRECTORY:-} set when running inside Bazel
 
-GetStringField() {
-	grep -m1 -h -A999 -F "name = \"$1\"," $W \
-	| while read -r line; do [ ')' = "$line" ] && break; echo "$line"; done \
-	| grep -m1 -F "$2 = \"" \
-	| awk -v FS='"' '{print $2}'
-}
-
 GetFirstOfListField() {
-	grep -m1 -h -A999 -F "name = \"$1\"," $W \
+	name=$1; shift
+	field=$1; shift
+	grep -m1 -h -A999 -F "name = \"$name\"," $W \
 	| while read -r line; do [ ')' = "$line" ] && break; echo "$line"; done \
-	| grep -m1 -A1 -F "$2 = [" \
+	| grep -m1 -A1 -E "^$field = \[" \
 	| awk -v FS='"' '{print $2}' \
 	| while read -r s; do [ -n "$s" ] && echo "$s"; done
+}
+
+GetStringField() {
+	name=$1; shift
+	field=$1; shift
+	value=$(grep -m1 -h -A999 -F "name = \"$name\"," $W \
+		| while read -r line; do [ ')' = "$line" ] && break; echo "$line"; done \
+		| grep -m1 -E "^$field = \"" \
+		| awk -v FS='"' '{print $2}')
+	if [ "$field" = url ] && [ -z "$value" ]; then
+		GetFirstOfListField "$name" urls
+	else
+		echo "$value"
+	fi
 }
 
 Pin() {
@@ -168,14 +177,11 @@ fi
 	kind=$(grep -m1 -h -B1 -F "name = \"$name\"," $W | head -n1 | sed 's%(%%')
 	case "$kind" in
 		http_archive)
-			url=$(GetStringField "$name" url || '')
-			if [ -z "$url" ]; then
-				url=$(GetFirstOfListField "$name" urls || '')
-			fi
-			type=$(GetStringField "$name" type || '')
-			upgrades_slug=$(GetStringField "$name" upgrades_slug || '')
-			upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '')
-			upgrade_constraint_url_contains=$(GetStringField "$name" upgrade_constraint_url_contains || '')
+			url=$(GetStringField "$name" url)
+			type=$(GetStringField "$name" type)
+			upgrades_slug=$(GetStringField "$name" upgrades_slug)
+			upgrade_constraint=$(GetStringField "$name" upgrade_constraint)
+			upgrade_constraint_url_contains=$(GetStringField "$name" upgrade_constraint_url_contains)
 			key="$(KeyHTTPArchive "$url" "$type" "$upgrades_slug" "$upgrade_constraint" "$upgrade_constraint_url_contains")"
 			# If upgraded, use lockfile to resolve url
 			if [ -z "$url" ]; then
