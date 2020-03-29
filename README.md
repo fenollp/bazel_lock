@@ -45,7 +45,18 @@ Repeat this last action only when adding, removing or upgrading dependencies.
 * [git_repository](./example_git_repository_bare/WORKSPACE) example
 	* compared to [bare version](./example_git_repository_locked/WORKSPACE)
 
-GitHub-friendly [dependency constraints](https://python-semanticversion.readthedocs.io/en/latest/reference.html#semantic_version.SimpleSpec):
+A [dependency on HEAD](https://python-semanticversion.readthedocs.io/en/latest/reference.html#semantic_version.SimpleSpec):
+[Example WORKSPACE](./example_http_archive_locked_constrained/WORKSPACE)
+```python
+http_archive(
+    name = "bazel_skylib",
+    locked = locked,
+    type = "zip",
+    upgrades_slug = "github.com/bazelbuild/bazel-skylib",
+)
+```
+
+GitHub-friendly [dependency constraints on a GitHub release](https://python-semanticversion.readthedocs.io/en/latest/reference.html#semantic_version.SimpleSpec):
 [Example WORKSPACE](./example_http_archive_locked_constrained/WORKSPACE)
 ```python
 http_archive(
@@ -53,7 +64,7 @@ http_archive(
     locked = locked,
     type = "tar.gz",
     upgrade_constraint = "~=0.8",
-    upgrades_slug = "bazelbuild/bazel-skylib",
+    upgrades_slug = "github.com/bazelbuild/bazel-skylib",
 )
 ```
 

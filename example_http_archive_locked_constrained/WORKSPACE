@@ -13,7 +13,7 @@ http_archive(
     locked = locked,
     type = "tar.gz",
     upgrade_constraint = "~=0.8",
-    upgrades_slug = "bazelbuild/bazel-skylib",
+    upgrades_slug = "github.com/bazelbuild/bazel-skylib",
 )
 
 load("@bazel_skylib//lib:versions.bzl", "versions")
