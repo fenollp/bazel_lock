@@ -151,9 +151,10 @@ echo 'Cleaning some Bazel state...'
 $BAZEL clean --expunge >/dev/null 2>&1 || true
 echo 'Locking repositories...'
 txt=$(mktemp)
-$BAZEL build "$@" >"$txt" 2>&1
+$BAZEL build "$@" 2>&1 | tee "$txt"
 errcode=$?
 if [ $errcode -ne 0 ]; then
+	echo 'Failed while locking!'
 	cat $L
 	cat "$txt"
 	rm "$txt"
