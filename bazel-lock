@@ -75,7 +75,13 @@ FilterSemVer() {
 	{
 		echo 'versions = {}'
 		echo 'for line in sys.stdin:'
-		echo '    version, url = line.rstrip().split(" ", 1)'
+		echo '    version_and_url = line.rstrip().split(" ", 1)'
+		echo '    if len(version_and_url) != 2:'
+		echo '        for version, url in versions.items():'
+		echo '            print("{} {}".format(version, url), file=sys.stderr)'
+		echo '        print("Bad version/URL: {}".format(version_and_url), file=sys.stderr)'
+		echo '        exit(42)'
+		echo '    version, url = version_and_url'
 		echo '    versions[Version.coerce(version)] = url'
 		echo 'selected = SimpleSpec(sys.argv[1]).select(versions)'
 		echo 'if not selected:'
@@ -91,7 +97,7 @@ FilterSemVer() {
 errcode=0
 
 if [ ! -f $W ]; then
-	echo "No Bazel $W in $PWD"
+	echo "No Bazel $W in $PWD" >&2
 	errcode=1
 fi
 [ $errcode -ne 0 ] && exit $errcode
@@ -114,14 +120,14 @@ for kind in http_archive; do
 		upgrade_constraint_url_contains=$(GetStringField "$name" upgrade_constraint_url_contains)
 		if [ -z "$upgrade_constraint" ]; then
 			if [ -z "$type" ]; then
-				echo "Missing 'type' field. Try: type = \"zip\""
+				echo "Missing 'type' field. Try: type = \"zip\"" >&2
 				errcode=1
 				continue
 			fi
 			gh_repo=git://github.com/$upgrades_slug.git
 			HEAD=$(git ls-remote "$gh_repo" | grep HEAD | awk '{print $1}')
 			if [ -z "$HEAD" ]; then
-				echo "Could not resolve HEAD of $gh_repo: remote not responding."
+				echo "Could not resolve HEAD of $gh_repo: remote not responding." >&2
 				errcode=1
 				continue
 			fi
@@ -131,7 +137,7 @@ for kind in http_archive; do
 			curled=$(mktemp)
 			if ! GitHubCurl "$curled" "$gh_releases_url"; then
 				rm "$curled"
-				echo "Failed fetching $gh_releases_url"
+				echo "Failed fetching $gh_releases_url" >&2
 				errcode=1
 				continue
 			fi
@@ -145,7 +151,7 @@ for kind in http_archive; do
 				done \
 				| FilterSemVer "$upgrade_constraint")
 			if [ -z "$url" ]; then
-				echo "No release of $upgrades_slug match constraints $upgrade_constraint"
+				echo "No release of $upgrades_slug match constraints $upgrade_constraint" >&2
 				errcode=1
 				continue
 			fi
@@ -174,11 +180,11 @@ txt=$(mktemp)
 $BAZEL build "$@" 2>&1 | tee "$txt"
 errcode=$?
 if [ $errcode -ne 0 ]; then
-	echo 'Failed while locking!'
-	cat $L
-	cat "$txt"
+	echo 'Failed while locking!' >&2
+	cat $L >&2
+	cat "$txt" >&2
 	rm "$txt"
-	echo "Failed to run $BAZEL build $*"
+	echo "Failed to run $BAZEL build $*" >&2
 	exit $errcode
 fi
 
