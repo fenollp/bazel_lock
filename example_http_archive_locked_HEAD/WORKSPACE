@@ -1,0 +1,21 @@
+workspace(name = "example_http_archive_locked_HEAD")
+
+local_repository(
+    name = "bazel_lock",
+    path = "..",
+)
+
+load("@bazel_lock//rules:locked.bzl", "http_archive")
+load("//:LOCKFILE.bzl", "locked")
+
+http_archive(
+    name = "bazel_skylib",
+    locked = locked,
+    type = "tar.gz",
+    upgrades_slug = "bazelbuild/bazel-skylib",
+)
+
+load("@bazel_skylib//lib:versions.bzl", "versions")
+
+# Not an actual requirement. This is only to demonstrate usage of http_archive
+versions.check(minimum_bazel_version = "1.0.0")

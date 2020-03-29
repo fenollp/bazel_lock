@@ -100,49 +100,69 @@ echo 'locked = {}' >$L
 
 # Upgrade what needs to be resolved
 echo 'Upgrading dependencies...'
-# shellcheck disable=SC2013
-for name in $(grep -A1 -F 'http_archive(' -- $W | grep -F ' name = ' | awk -v FS='"' '{print $2}'); do
-	kind=http_archive
-	upgrades_slug=$(GetStringField "$name" upgrades_slug || '')
-	[ -z "$upgrades_slug" ] && continue
-	echo "Upgrading $kind(name = \"$name\", ...)"
-	gh_releases_url=https://api.github.com/repos/"$upgrades_slug"/releases
-	curled=$(mktemp)
-	if ! GitHubCurl "$curled" "$gh_releases_url"; then
-		rm "$curled"
-		echo "Failed fetching $gh_releases_url"
-		errcode=1
-		continue
-	fi
-	type=$(GetStringField "$name" type || '')
-	upgrade_constraint=$(GetStringField "$name" upgrade_constraint || '')
-	upgrade_constraint_url_contains=$(GetStringField "$name" upgrade_constraint_url_contains || '')
-	url=$( (cat "$curled" && rm "$curled") \
-		| jq '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
-		| jq    ". | select(endswith(\"$type\"))" \
-		| jq -r ". | select(endswith(\"$upgrade_constraint_url_contains\"))" \
-		| while read -r gh_url; do
-			# Extract & deduplicate version-like strings
-			echo "$(echo "$gh_url" | grep -Eo '[0-9]+(\.[0-9]+)+' | sort -u) $gh_url"
-		done \
-		| FilterSemVer "$upgrade_constraint")
-	if [ -z "$url" ]; then
-		echo "No release of $upgrades_slug match constraints $upgrade_constraint"
-		errcode=1
-		continue
-	fi
-	echo "Selected @$name's URL:"
-	echo "$kind("
-	echo "    name = \"$name\","
-	[ -n "$type" ] && echo "    type = \"$type\","
-	echo "    upgrades_slug = \"$upgrades_slug\","
-	[ -n "$upgrade_constraint" ] && echo "    upgrade_constraint = \"$upgrade_constraint\","
-	[ -n "$upgrade_constraint_url_contains" ] && echo "    upgrade_constraint_url_contains = \"$upgrade_constraint_url_contains\","
-	echo "    ..."
-	echo "    url = \"$url\","
-	echo ")"
-	echo
-	Pin "$(KeyHTTPArchive '' "$type" "$upgrades_slug" "$upgrade_constraint" "$upgrade_constraint_url_contains")" "\"url\": \"$url\""
+# shellcheck disable=SC2043
+for kind in http_archive; do
+	# shellcheck disable=SC2013
+	for name in $(grep -A1 -F "$kind(" $W | grep -F ' name = ' | awk -v FS='"' '{print $2}'); do
+		url=$(GetStringField "$name" url)
+		[ -n "$url" ] && continue
+		upgrades_slug=$(GetStringField "$name" upgrades_slug)
+		[ -z "$upgrades_slug" ] && continue
+		echo "Upgrading $kind(name = \"$name\", ...)"
+		type=$(GetStringField "$name" type)
+		upgrade_constraint=$(GetStringField "$name" upgrade_constraint)
+		upgrade_constraint_url_contains=$(GetStringField "$name" upgrade_constraint_url_contains)
+		if [ -z "$upgrade_constraint" ]; then
+			if [ -z "$type" ]; then
+				echo "Missing 'type' field. Try: type = \"zip\""
+				errcode=1
+				continue
+			fi
+			gh_repo=git://github.com/$upgrades_slug.git
+			HEAD=$(git ls-remote "$gh_repo" | grep HEAD | awk '{print $1}')
+			if [ -z "$HEAD" ]; then
+				echo "Could not resolve HEAD of $gh_repo: remote not responding."
+				errcode=1
+				continue
+			fi
+			url=https://github.com/$upgrades_slug/archive/$HEAD.$type
+		else
+			gh_releases_url=https://api.github.com/repos/"$upgrades_slug"/releases
+			curled=$(mktemp)
+			if ! GitHubCurl "$curled" "$gh_releases_url"; then
+				rm "$curled"
+				echo "Failed fetching $gh_releases_url"
+				errcode=1
+				continue
+			fi
+			url=$( (cat "$curled" && rm "$curled") \
+				| jq '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
+				| jq    ". | select(endswith(\"$type\"))" \
+				| jq -r ". | select(endswith(\"$upgrade_constraint_url_contains\"))" \
+				| while read -r gh_url; do
+					# Extract & deduplicate version-like strings
+					echo "$(echo "$gh_url" | grep -Eo '[0-9]+(\.[0-9]+)+' | sort -u) $gh_url"
+				done \
+				| FilterSemVer "$upgrade_constraint")
+			if [ -z "$url" ]; then
+				echo "No release of $upgrades_slug match constraints $upgrade_constraint"
+				errcode=1
+				continue
+			fi
+		fi
+		echo "Selected @$name's URL:"
+		echo "$kind("
+		echo "    name = \"$name\","
+		[ -n "$type" ] && echo "    type = \"$type\","
+		echo "    upgrades_slug = \"$upgrades_slug\","
+		[ -n "$upgrade_constraint" ] && echo "    upgrade_constraint = \"$upgrade_constraint\","
+		[ -n "$upgrade_constraint_url_contains" ] && echo "    upgrade_constraint_url_contains = \"$upgrade_constraint_url_contains\","
+		echo "    ..."
+		echo "    url = \"$url\","
+		echo ")"
+		echo
+		Pin "$(KeyHTTPArchive '' "$type" "$upgrades_slug" "$upgrade_constraint" "$upgrade_constraint_url_contains")" "\"url\": \"$url\""
+	done
 done
 [ $errcode -ne 0 ] && exit $errcode
 

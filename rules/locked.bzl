@@ -13,17 +13,28 @@ def _named(kwargs):
 def _err(name, msg):
     fail("Repository @{} {}".format(name, msg))
 
-def _convenience_for_github_http_archive(kwargs):
-    # Takes care of stripping root directory in github archives
-    ## strip_prefix = "rules_cc-{}".format(rules_cc),
-    ## urls = ["https://github.com/bazelbuild/rules_cc/archive/{}.zip".format(rules_cc)],
+def _maybe_set_strip_prefix_of_http_archive(kwargs):
+    strip_prefix = kwargs.get("strip_prefix", None)
+    if type(strip_prefix) == type(""):
+        # If user manually set option, use it.
+        return kwargs
+    endings = [".tar.gz", ".zip"]
     for url in kwargs.get("urls", []):
         p = url.split("/")
-        if len(p) == 7 and [p[2], p[5]] == ["github.com", "archive"] and p[6].endswith(".zip"):
-            repo, zipped = p[4], p[6]
-            strip = "{}-{}".format(repo, zipped.replace(".zip", ""))
-            kwargs.update(strip_prefix = strip)
-            break
+        if type(strip_prefix) == type(True) and strip_prefix:
+            # If user set option to True
+            name = p[-1]
+            for ending in endings:
+                name = name.replace(ending, "")
+            kwargs.update(strip_prefix = name)
+            return kwargs
+        for ending in endings:
+            # If one of the URLs is a github archive link: auto set.
+            if len(p) == 7 and [p[2], p[5]] == ["github.com", "archive"] and p[6].endswith(ending):
+                repo, zipped = p[4], p[6]
+                strip = "{}-{}".format(repo, zipped.replace(ending, ""))
+                kwargs.update(strip_prefix = strip)
+                return kwargs
     return kwargs
 
 def _contains_any_of(keys, kvs):
@@ -74,7 +85,7 @@ def _impl(**implkwargs):
     if not _contains_any_of(fail_if_missing_any_of, kwargs):
         _err(name, "is unlocked. Please run bazel-lock first.")
 
-    kwargs = _convenience_for_github_http_archive(kwargs)
+    kwargs = _maybe_set_strip_prefix_of_http_archive(kwargs)
 
     return impl(**kwargs)
 

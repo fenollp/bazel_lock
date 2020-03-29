@@ -29,7 +29,9 @@ for workspace in example_*locked*; do
 
 	echo 'locked = {}'>LOCKFILE.bzl
 
-	if [[ $workspace = example_http_archive_locked_constrained ]]; then
+	if [[ "$workspace" = example_http_archive_locked_constrained ]] \
+	|| [[ "$workspace" = example_http_archive_locked_HEAD ]]
+	then
 		! $BAZEL run hello
 	else
 		$BAZEL run hello
@@ -50,13 +52,15 @@ for workspace in example_*locked*; do
 
 	../bazel-lock hello
 
-	if [[ $workspace = example_http_archive_locked_constrained ]]; then
+	case "$workspace" in
+	example_http_archive_locked_constrained)
 		git --no-pager diff . && [[ 8 -eq "$(git diff . | wc -l)" ]]
 		diff -q LOCKFILE.bzl upgraded_LOCKFILE.bzl
 		git checkout -- LOCKFILE.bzl
-	else
+		;;
+	*)
 		git --no-pager diff . && [[ 0 -eq "$(git diff . | wc -l)" ]]
-	fi
+	esac
 
 	popd >/dev/null
 done
