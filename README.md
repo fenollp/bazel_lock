@@ -56,6 +56,16 @@ http_archive(
 )
 ```
 
+A [dependency constraint on a git tag](./example_git_repository_locked_constrained/WORKSPACE):
+```python
+git_repository(
+    name = "bazel_skylib",
+    locked = locked,
+    remote = "https://github.com/bazelbuild/bazel-skylib.git",
+    upgrade_constraint = "~=0.8",
+)
+```
+
 GitHub-friendly [dependency constraints on a GitHub release](https://python-semanticversion.readthedocs.io/en/latest/reference.html#semantic_version.SimpleSpec):
 [Example WORKSPACE](./example_http_archive_locked_constrained/WORKSPACE)
 ```python

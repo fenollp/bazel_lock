@@ -51,7 +51,8 @@ KeyGitRepository() {
     tag=$1; shift
     branch=$1; shift
     remote=$1; shift
-    echo "git_repository> $tag $branch $remote"
+    upgrade_constraint=$1; shift
+    echo "git_repository> $tag $branch $remote $upgrade_constraint"
 }
 
 GitHubCurl() {
@@ -86,7 +87,7 @@ FilterSemVer() {
 		echo 'selected = SimpleSpec(sys.argv[1]).select(versions)'
 		echo 'if not selected:'
 		echo '    exit(42)'
-		echo 'print(versions[selected])'
+		echo 'print(selected, versions[selected])'
 	} >>"$script"
 	python "$script" "$filter"
 	err=$?
@@ -106,85 +107,138 @@ echo 'locked = {}' >$L
 
 # Upgrade what needs to be resolved
 echo 'Upgrading dependencies...'
-# shellcheck disable=SC2043
-for kind in http_archive; do
+for kind in http_archive git_repository; do
 	# shellcheck disable=SC2013
 	for name in $(grep -A1 -F "$kind(" $W | grep -F ' name = ' | awk -v FS='"' '{print $2}'); do
-		url=$(GetStringField "$name" url)
-		[ -n "$url" ] && continue
-		upgrades_slug=$(GetStringField "$name" upgrades_slug)
-		[ -z "$upgrades_slug" ] && continue
-		echo "Upgrading $kind(name = \"$name\", ...)"
-		type=$(GetStringField "$name" type)
-		upgrade_constraint=$(GetStringField "$name" upgrade_constraint)
-		upgrade_constraint_url_contains=$(GetStringField "$name" upgrade_constraint_url_contains)
-		if [ -z "$upgrade_constraint" ]; then
-			if [ -z "$type" ]; then
-				echo "Missing 'type' field. Try: type = \"zip\"" >&2
+		case $kind in
+		git_repository)
+			remote=$(GetStringField "$name" remote)
+			if [ -z "$remote" ]; then
+				echo "Upgrading $kind(name = \"$name\", ...)"
+				echo "@name is missing 'remote' field" >&2
 				errcode=1
 				continue
 			fi
-			case "${upgrades_slug%%/*}" in
-			github.com)
-				repo=git://$upgrades_slug.git
-				HEAD=$(git ls-remote "$repo" | grep HEAD | awk '{print $1}')
-				if [ -z "$HEAD" ]; then
-					echo "Could not resolve HEAD of $repo: remote not responding." >&2
-					errcode=1
-					continue
-				fi
-				url=https://$upgrades_slug/archive/$HEAD.$type
-				;;
-			*)
-				echo "Unsupported $kind slug: ${upgrades_slug%%/*}" >&2
+			tag=$(GetStringField "$name" tag)
+			branch=$(GetStringField "$name" branch)
+			([ -n "$tag" ] || [ -n "$branch" ]) && continue
+			echo "Upgrading $kind(name = \"$name\", ...)"
+			upgrade_constraint=$(GetStringField "$name" upgrade_constraint)
+			if [ -z "$upgrade_constraint" ]; then
+				echo "@name requires exactly one of 'tag', 'branch' or 'upgrade_constraint' to be provided" >&2
 				errcode=1
 				continue
-			esac
-		else
-			case "${upgrades_slug%%/*}" in
-			github.com)
-				gh_releases_url=https://api.github.com/repos/"${upgrades_slug#*/}"/releases
-				curled=$(mktemp)
-				if ! GitHubCurl "$curled" "$gh_releases_url"; then
-					rm "$curled"
-					echo "Failed fetching $gh_releases_url" >&2
-					errcode=1
-					continue
-				fi
-				url=$( (cat "$curled" && rm "$curled") \
-					| jq '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
-					| jq    ". | select(endswith(\"$type\"))" \
-					| jq -r ". | select(endswith(\"$upgrade_constraint_url_contains\"))" \
-					| while read -r gh_url; do
-						# Extract & deduplicate version-like strings
-						echo "$(echo "${gh_url%.*}" | grep -Eo '[0-9]+(\.[0-9]+)+' | sort -u) $gh_url"
-					done \
-					| FilterSemVer "$upgrade_constraint")
-				if [ -z "$url" ]; then
-					echo "No release of $upgrades_slug match constraints $upgrade_constraint" >&2
-					errcode=1
-					continue
-				fi
-				;;
-			*)
-				echo "Unsupported $kind slug: ${upgrades_slug%%/*}. Maybe use git_repository()?" >&2
-				# TODO? git ls-remote + git archive (really should be using git_repository)
+			fi
+			tag_commit=$(git ls-remote --tags "$remote" \
+				| grep -vF '^{}' \
+				| while read -r commit ref; do
+					# Extract & deduplicate version-like strings
+					echo "$(echo "$ref" | grep -Eo '[0-9]+(\.[0-9]+)+' | sort -u) $commit"
+				done \
+				| FilterSemVer "$upgrade_constraint")
+			if [ -z "$tag_commit" ]; then
+				echo "No release of $remote match constraint $upgrade_constraint" >&2
 				errcode=1
 				continue
-			esac
-		fi
-		echo "Selected @$name's URL:"
-		echo "$kind("
-		echo "    name = \"$name\","
-		[ -n "$type" ] && echo "    type = \"$type\","
-		echo "    upgrades_slug = \"$upgrades_slug\","
-		[ -n "$upgrade_constraint" ] && echo "    upgrade_constraint = \"$upgrade_constraint\","
-		[ -n "$upgrade_constraint_url_contains" ] && echo "    upgrade_constraint_url_contains = \"$upgrade_constraint_url_contains\","
-		echo "    ..."
-		echo "    url = \"$url\","
-		echo ")"
-		echo
-		Pin "$(KeyHTTPArchive '' "$type" "$upgrades_slug" "$upgrade_constraint" "$upgrade_constraint_url_contains")" "\"url\": \"$url\""
+			fi
+			tag=$(echo "$tag_commit" | awk '{print $1}')
+			commit=$(echo "$tag_commit" | awk '{print $2}')
+			echo "Selected @$name's tag:"
+			echo "$kind("
+			echo "    name = \"$name\","
+			echo "    remote = \"$remote\","
+			echo "    upgrade_constraint = \"$upgrade_constraint\","
+			echo "    ..."
+			echo "    commit = \"$commit\",  # tag = \"$tag\""
+			echo ")"
+			echo
+			Pin "$(KeyGitRepository '' "$branch" "$remote" "$upgrade_constraint")" "\"commit\": \"$commit\""
+			;;
+
+		http_archive)
+			url=$(GetStringField "$name" url)
+			[ -n "$url" ] && continue
+			upgrades_slug=$(GetStringField "$name" upgrades_slug)
+			[ -z "$upgrades_slug" ] && continue
+			echo "Upgrading $kind(name = \"$name\", ...)"
+			type=$(GetStringField "$name" type)
+			upgrade_constraint=$(GetStringField "$name" upgrade_constraint)
+			upgrade_constraint_url_contains=$(GetStringField "$name" upgrade_constraint_url_contains)
+			version=''
+			if [ -z "$upgrade_constraint" ]; then
+				if [ -z "$type" ]; then
+					echo "Missing 'type' field. Try: type = \"zip\"" >&2
+					errcode=1
+					continue
+				fi
+				case "${upgrades_slug%%/*}" in
+				github.com)
+					repo=git://$upgrades_slug.git
+					HEAD=$(git ls-remote "$repo" | grep HEAD | awk '{print $1}')
+					if [ -z "$HEAD" ]; then
+						echo "Could not resolve HEAD of $repo: remote not responding." >&2
+						errcode=1
+						continue
+					fi
+					url=https://$upgrades_slug/archive/$HEAD.$type
+					version=HEAD
+					;;
+				*)
+					echo "Unsupported $kind slug: ${upgrades_slug%%/*}" >&2
+					errcode=1
+					continue
+				esac
+			else
+				case "${upgrades_slug%%/*}" in
+				github.com)
+					gh_releases_url=https://api.github.com/repos/"${upgrades_slug#*/}"/releases
+					curled=$(mktemp)
+					if ! GitHubCurl "$curled" "$gh_releases_url"; then
+						rm "$curled"
+						echo "Failed fetching $gh_releases_url" >&2
+						errcode=1
+						continue
+					fi
+					version_url=$( (cat "$curled" && rm "$curled") \
+						| jq '.[] | select( .draft == false and .prerelease == false ) | .assets[] | .browser_download_url' \
+						| jq    ". | select(endswith(\"$type\"))" \
+						| jq -r ". | select(endswith(\"$upgrade_constraint_url_contains\"))" \
+						| while read -r gh_url; do
+							# Extract & deduplicate version-like strings
+							echo "$(echo "${gh_url%.*}" | grep -Eo '[0-9]+(\.[0-9]+)+' | sort -u) $gh_url"
+						done \
+						| FilterSemVer "$upgrade_constraint")
+					if [ -z "$version_url" ]; then
+						echo "No release of $upgrades_slug match constraint $upgrade_constraint" >&2
+						errcode=1
+						continue
+					fi
+					version=$(echo "$version_url" | awk '{print $1}')
+					url=$(echo "$version_url" | awk '{print $2}')
+					;;
+				*)
+					echo "Unsupported $kind slug: ${upgrades_slug%%/*}. Maybe use git_repository()?" >&2
+					# TODO? git ls-remote + git archive (really should be using git_repository)
+					errcode=1
+					continue
+				esac
+			fi
+			echo "Selected @$name's URL:"
+			echo "$kind("
+			echo "    name = \"$name\","
+			[ -n "$type" ] && echo "    type = \"$type\","
+			echo "    upgrades_slug = \"$upgrades_slug\","
+			[ -n "$upgrade_constraint" ] && echo "    upgrade_constraint = \"$upgrade_constraint\","
+			[ -n "$upgrade_constraint_url_contains" ] && echo "    upgrade_constraint_url_contains = \"$upgrade_constraint_url_contains\","
+			echo "    ..."
+			echo "    url = \"$url\",  # $version"
+			echo ")"
+			echo
+			Pin "$(KeyHTTPArchive '' "$type" "$upgrades_slug" "$upgrade_constraint" "$upgrade_constraint_url_contains")" "\"url\": \"$url\""
+			;;
+
+		*) exit 42
+		esac
 	done
 done
 [ $errcode -ne 0 ] && exit $errcode
@@ -238,7 +292,13 @@ fi
 			tag=$(GetStringField "$name" tag)
 			branch=$(GetStringField "$name" branch)
 			remote=$(GetStringField "$name" remote)
-			Pin "$(KeyGitRepository	"$tag" "$branch" "$remote")" "$pinned"
+			upgrade_constraint=$(GetStringField "$name" upgrade_constraint)
+			key="$(KeyGitRepository "$tag" "$branch" "$remote" "$upgrade_constraint")"
+			if ! echo "$pinned" | grep -F '"commit":' >/dev/null 2>&1; then
+				Pin "$key" "\"commit\": locked[\"$key\"][\"commit\"], $pinned"
+			else
+				Pin "$key" "$pinned"
+			fi
 			;;
 		*)
 			echo "Unhandled rule '$kind'" && exit 2

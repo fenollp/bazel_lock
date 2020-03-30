@@ -131,13 +131,23 @@ def git_repository(**kwargs):
     if "commit" in kwargs:
         return _git_repository(**kwargs)
 
+    SPECIALS = [
+        "upgrade_constraint",
+    ]
+
+    if "locked" not in kwargs:
+        for special in SPECIALS:
+            if special in kwargs:
+                _err(name, "is missing 'locked' field")
+
     # Fields that must be here
     if "remote" not in kwargs:
         _err(name, "requires string field 'remote' to be provided")
     has_tag = "tag" in kwargs
     has_branch = "branch" in kwargs
-    if has_tag and has_branch or not (has_tag or has_branch):
-        _err(name, "requires exactly one of 'tag' or 'branch' to be provided")
+    has_upgrade_constraint = "upgrade_constraint" in kwargs
+    if len([42 for b in [has_tag, has_branch, has_upgrade_constraint] if b]) != 1:
+        _err(name, "requires exactly one of 'tag', 'branch' or 'upgrade_constraint' to be provided")
 
     return _impl(
         impl = _git_repository,
@@ -147,7 +157,7 @@ def git_repository(**kwargs):
         then_pop = [
             "tag",
             "branch",
-        ],
+        ] + SPECIALS,
         fail_if_missing_any_of = [
             "commit",
             "tag",
@@ -157,5 +167,5 @@ def git_repository(**kwargs):
             "tag",
             "branch",
             "remote",
-        ],
+        ] + SPECIALS,
     )
