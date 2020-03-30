@@ -13,17 +13,18 @@ L=LOCKFILE.bzl
 GetFirstOfListField() {
 	name=$1; shift
 	field=$1; shift
-	grep -m1 -h -A999 -F "name = \"$name\"," $W \
+	grep -h -A999 -F "name = \"$name\"," $W \
 	| while read -r line; do [ ')' = "$line" ] && break; echo "$line"; done \
-	| grep -m1 -A1 -E "^$field = \[" \
+	| grep -A1 -E "^$field = \[" \
+	| while read -r line; do echo "$line" && [ "$line" != "${line#*\"}" ] && break; done \
 	| awk -v FS='"' '{print $2}' \
 	| while read -r s; do [ -n "$s" ] && echo "$s"; done
 }
-
+# NOTE: on macOS `grep -mX -AY` is broken (could not find)
 GetStringField() {
 	name=$1; shift
 	field=$1; shift
-	value=$(grep -m1 -h -A999 -F "name = \"$name\"," $W \
+	value=$(grep -h -A999 -F "name = \"$name\"," $W \
 		| while read -r line; do [ ')' = "$line" ] && break; echo "$line"; done \
 		| grep -m1 -E "^$field = \"" \
 		| awk -v FS='"' '{print $2}')
@@ -39,20 +40,20 @@ Pin() {
 }
 
 KeyHTTPArchive() {
-    url=$1; shift
-    type=$1; shift
-    upgrades_slug=$1; shift
-    upgrade_constraint=$1; shift
-    upgrade_constraint_url_contains=$1; shift
-    echo "http_archive> $url $type $upgrades_slug $upgrade_constraint $upgrade_constraint_url_contains"
+	url=$1; shift
+	type=$1; shift
+	upgrades_slug=$1; shift
+	upgrade_constraint=$1; shift
+	upgrade_constraint_url_contains=$1; shift
+	echo "http_archive> $url $type $upgrades_slug $upgrade_constraint $upgrade_constraint_url_contains"
 }
 
 KeyGitRepository() {
-    tag=$1; shift
-    branch=$1; shift
-    remote=$1; shift
-    upgrade_constraint=$1; shift
-    echo "git_repository> $tag $branch $remote $upgrade_constraint"
+	tag=$1; shift
+	branch=$1; shift
+	remote=$1; shift
+	upgrade_constraint=$1; shift
+	echo "git_repository> $tag $branch $remote $upgrade_constraint"
 }
 
 GitHubCurl() {
@@ -115,7 +116,7 @@ for kind in http_archive git_repository; do
 			remote=$(GetStringField "$name" remote)
 			if [ -z "$remote" ]; then
 				echo "Upgrading $kind(name = \"$name\", ...)"
-				echo "@name is missing 'remote' field" >&2
+				echo "@$name is missing 'remote' field" >&2
 				errcode=1
 				continue
 			fi
@@ -125,7 +126,7 @@ for kind in http_archive git_repository; do
 			echo "Upgrading $kind(name = \"$name\", ...)"
 			upgrade_constraint=$(GetStringField "$name" upgrade_constraint)
 			if [ -z "$upgrade_constraint" ]; then
-				echo "@name requires exactly one of 'tag', 'branch' or 'upgrade_constraint' to be provided" >&2
+				echo "@$name requires exactly one of 'tag', 'branch' or 'upgrade_constraint' to be provided" >&2
 				errcode=1
 				continue
 			fi
