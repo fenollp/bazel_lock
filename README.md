@@ -6,7 +6,7 @@ Lockfile & deps upgrader for [Bazel](https://bazel.build)
 
 Create the lockfile at the root of your workspace.
 ```shell
-touch LOCKFILE.bzl
+echo 'locked = {}' >LOCKFILE.bzl
 ```
 
 Replace your loading of `http_archive` or `git_repository`.
@@ -34,9 +34,15 @@ Lock your dependencies:
 ./bazel-lock //...  # or a specific build target
 
 # Keep track of the lockfile
-git commit -am 'Lock Bazel dependencies'
+git add LOCKFILE.bzl && git commit -am 'Lock Bazel dependencies'
 ```
 Repeat this last action only when adding, removing or upgrading dependencies.
+
+```
+# Upgrade already locked dependencies with:
+bazel run @bazel_lock//:bazel_lock -- //...  # or a specific build target
+# however this will fail in some cases (in which case fall back to ./bazel-lock)
+```
 
 ## Examples
 
@@ -45,8 +51,7 @@ Repeat this last action only when adding, removing or upgrading dependencies.
 * [git_repository](./example_git_repository_bare/WORKSPACE) example
 	* compared to [bare version](./example_git_repository_locked/WORKSPACE)
 
-A [dependency on HEAD](https://python-semanticversion.readthedocs.io/en/latest/reference.html#semantic_version.SimpleSpec):
-[Example WORKSPACE](./example_http_archive_locked_constrained/WORKSPACE)
+A [dependency on HEAD](./example_http_archive_locked_constrained/WORKSPACE):
 ```python
 http_archive(
     name = "bazel_skylib",

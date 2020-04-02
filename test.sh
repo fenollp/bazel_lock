@@ -4,6 +4,37 @@ set -eu
 set -o pipefail
 git --no-pager diff -- example_* && [[ 0 -eq "$(git diff -- example_* | wc -l)" ]]
 
+
+echo
+echo Updating dependencies
+echo
+
+for workspace in example_*locked*; do
+	echo
+	echo "$workspace"
+	pushd "$workspace" >/dev/null
+
+	$BAZEL run @bazel_lock//:bazel_lock -- hello
+
+	case "$workspace" in
+	example_http_archive_locked_constrained)
+		git --no-pager diff . && [[ 8 -eq "$(git diff . | wc -l)" ]]
+		diff -q LOCKFILE.bzl upgraded_LOCKFILE.bzl
+		git checkout -- LOCKFILE.bzl
+		;;
+	example_git_repository_locked_constrained)
+		git --no-pager diff . && [[ 8 -eq "$(git diff . | wc -l)" ]]
+		diff -q LOCKFILE.bzl upgraded_LOCKFILE.bzl
+		git checkout -- LOCKFILE.bzl
+		;;
+	*)
+		git --no-pager diff . && [[ 0 -eq "$(git diff . | wc -l)" ]]
+	esac
+
+	popd >/dev/null
+done
+
+
 echo
 echo Running locked
 echo
@@ -43,7 +74,7 @@ done
 
 
 echo
-echo Updating dependencies
+echo Bootstrapping lockfile
 echo
 
 for workspace in example_*locked*; do
@@ -51,6 +82,7 @@ for workspace in example_*locked*; do
 	echo "$workspace"
 	pushd "$workspace" >/dev/null
 
+	# $BAZEL run @bazel_lock//:bazel_lock -- hello
 	../bazel-lock hello
 
 	case "$workspace" in

@@ -6,14 +6,28 @@
 # Ideally this is part of Bazel itself, replacing these hacks.
 
 BAZEL=${BAZEL:-bazel}
-W=WORKSPACE
-L=LOCKFILE.bzl
-#${BUILD_WORKSPACE_DIRECTORY:-} set when running inside Bazel
+if ! $BAZEL --version >/dev/null 2>&1; then
+	if ! bazelisk --version >/dev/null 2>&1; then
+		echo "$BAZEL not found" >&2
+		exit 1
+	fi
+	BAZEL=bazelisk
+fi
+
+wd=.
+root=$(dirname "$0")
+if [ -n "${BUILD_WORKSPACE_DIRECTORY:-}" ]; then
+	# echo "NOTE: Running within $BAZEL"
+	wd=$BUILD_WORKSPACE_DIRECTORY
+	root=$PWD/external/bazel_lock/
+fi
+W=$wd/WORKSPACE
+L=$wd/LOCKFILE.bzl
 
 GetFirstOfListField() {
 	name=$1; shift
 	field=$1; shift
-	grep -h -A999 -F "name = \"$name\"," $W \
+	grep -h -A999 -F "name = \"$name\"," "$W" \
 	| while read -r line; do [ ')' = "$line" ] && break; echo "$line"; done \
 	| grep -A1 -E "^$field = \[" \
 	| while read -r line; do echo "$line" && [ "$line" != "${line#*\"}" ] && break; done \
@@ -24,7 +38,7 @@ GetFirstOfListField() {
 GetStringField() {
 	name=$1; shift
 	field=$1; shift
-	value=$(grep -h -A999 -F "name = \"$name\"," $W \
+	value=$(grep -h -A999 -F "name = \"$name\"," "$W" \
 		| while read -r line; do [ ')' = "$line" ] && break; echo "$line"; done \
 		| grep -m1 -E "^$field = \"" \
 		| awk -v FS='"' '{print $2}')
@@ -36,7 +50,7 @@ GetStringField() {
 }
 
 Pin() {
-	printf 'locked["%s"] = {%s}\n' "$1" "$2" >>$L
+	printf 'locked["%s"] = {%s}\n' "$1" "$2" >>"$L"
 }
 
 KeyHTTPArchive() {
@@ -73,7 +87,7 @@ FilterSemVer() {
 		echo 'import sys'
 	} >"$script"
 	#https://raw.githubusercontent.com/rbarrois/python-semanticversion/eda1ac8c22a99dbd01cd57fbcd459856b469ae46/semantic_version/base.py
-	cat "$(dirname "$0")"/semantic_version-eda1ac8c22a99dbd01cd57fbcd459856b469ae46.py >>"$script"
+	cat "$root"/semantic_version-eda1ac8c22a99dbd01cd57fbcd459856b469ae46.py >>"$script"
 	{
 		echo 'versions = {}'
 		echo 'for line in sys.stdin:'
@@ -98,19 +112,19 @@ FilterSemVer() {
 
 errcode=0
 
-if [ ! -f $W ]; then
+if [ ! -f "$W" ]; then
 	echo "No Bazel $W in $PWD" >&2
 	errcode=1
 fi
 [ $errcode -ne 0 ] && exit $errcode
 
-echo 'locked = {}' >$L
+echo 'locked = {}' >"$L"
 
 # Upgrade what needs to be resolved
 echo 'Upgrading dependencies...'
 for kind in http_archive git_repository; do
 	# shellcheck disable=SC2013
-	for name in $(grep -A1 -F "$kind(" $W | grep -F ' name = ' | awk -v FS='"' '{print $2}'); do
+	for name in $(grep -A1 -F "$kind(" "$W" | grep -F ' name = ' | awk -v FS='"' '{print $2}'); do
 		case $kind in
 		git_repository)
 			remote=$(GetStringField "$name" remote)
@@ -122,7 +136,7 @@ for kind in http_archive git_repository; do
 			fi
 			tag=$(GetStringField "$name" tag)
 			branch=$(GetStringField "$name" branch)
-			([ -n "$tag" ] || [ -n "$branch" ]) && continue
+			{ [ -n "$tag" ] || [ -n "$branch" ]; } && continue
 			echo "Upgrading $kind(name = \"$name\", ...)"
 			upgrade_constraint=$(GetStringField "$name" upgrade_constraint)
 			if [ -z "$upgrade_constraint" ]; then
@@ -244,16 +258,18 @@ for kind in http_archive git_repository; do
 done
 [ $errcode -ne 0 ] && exit $errcode
 
-# Run build
+# Clean so sum of only most recently downloaded files is computed
 echo 'Cleaning some Bazel state...'
 $BAZEL clean --expunge >/dev/null 2>&1 || true
+# Run build
 echo 'Locking repositories...'
 txt=$(mktemp)
-$BAZEL build "$@" 2>&1 | tee "$txt"
+cd "$wd" && $BAZEL build "$@" 2>&1 | tee "$txt"
 errcode=$?
+cd -
 if [ $errcode -ne 0 ]; then
 	echo 'Failed while locking!' >&2
-	cat $L >&2
+	cat "$L" >&2
 	cat "$txt" >&2
 	rm "$txt"
 	echo "Failed to run $BAZEL build $*" >&2
@@ -273,7 +289,7 @@ fi
 	pinned=${pinned# }
 	pinned=${pinned% }
 
-	kind=$(grep -m1 -h -B1 -F "name = \"$name\"," $W | head -n1 | sed 's%(%%')
+	kind=$(grep -m1 -h -B1 -F "name = \"$name\"," "$W" | head -n1 | sed 's%(%%')
 	case "$kind" in
 		http_archive)
 			url=$(GetStringField "$name" url)
@@ -313,7 +329,7 @@ cat << EOF >"$script"
 from __future__ import print_function
 import json
 EOF
-cat $L >>"$script"
+cat "$L" >>"$script"
 cat << EOF >>"$script"
 print('locked = {}')
 for k in sorted(locked):
@@ -327,4 +343,4 @@ python "$script" >"$pretty"
 errcode=$?
 rm "$script"
 [ $errcode -ne 0 ] && rm "$pretty" && exit $errcode
-mv "$pretty" $L
+mv "$pretty" "$L"
