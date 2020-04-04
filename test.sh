@@ -27,9 +27,27 @@ for workspace in example_*locked*; do
 		diff -q LOCKFILE.bzl upgraded_LOCKFILE.bzl
 		git checkout -- LOCKFILE.bzl
 		;;
+	example_http_archive_locked_HEAD)
+		git --no-pager diff . && [[ 8 -eq "$(git diff . | wc -l)" ]]
+		git checkout -- LOCKFILE.bzl
+		;;
 	*)
 		git --no-pager diff . && [[ 0 -eq "$(git diff . | wc -l)" ]]
 	esac
+
+	popd >/dev/null
+done
+
+for workspace in example_*resolved*; do
+	echo
+	echo "$workspace"
+	pushd "$workspace" >/dev/null
+
+	$BAZEL sync
+
+	$BAZEL run hello
+
+	git --no-pager diff . && [[ 0 -eq "$(git diff . | wc -l)" ]]
 
 	popd >/dev/null
 done
@@ -94,6 +112,10 @@ for workspace in example_*locked*; do
 	example_git_repository_locked_constrained)
 		git --no-pager diff . && [[ 8 -eq "$(git diff . | wc -l)" ]]
 		diff -q LOCKFILE.bzl upgraded_LOCKFILE.bzl
+		git checkout -- LOCKFILE.bzl
+		;;
+	example_http_archive_locked_HEAD)
+		git --no-pager diff . && [[ 8 -eq "$(git diff . | wc -l)" ]]
 		git checkout -- LOCKFILE.bzl
 		;;
 	*)

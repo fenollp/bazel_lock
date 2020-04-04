@@ -28,6 +28,7 @@ git_repository(
     tag = "...",
 )
 ```
+### Bootstrap
 
 Lock your dependencies:
 ```shell
@@ -38,20 +39,22 @@ git add LOCKFILE.bzl && git commit -am 'Lock Bazel dependencies'
 ```
 Repeat this last action only when adding, removing or upgrading dependencies.
 
-```
-# Upgrade already locked dependencies with:
+### Upgrade
+
+Upgrade already locked dependencies with:
+```shell
 bazel run @bazel_lock//:bazel_lock -- //...  # or a specific build target
-# however this will fail in some cases (in which case fall back to ./bazel-lock)
 ```
+If this fails run the bootstrap step (fall back to ./bazel-lock).
 
 ## Examples
 
-* [http_archive](./example_http_archive_bare/WORKSPACE) example
-    * compared to [bare version](./example_http_archive_locked/WORKSPACE)
-* [git_repository](./example_git_repository_bare/WORKSPACE) example
-	* compared to [bare version](./example_git_repository_locked/WORKSPACE)
+* [http_archive](./example_http_archive_locked/WORKSPACE) example
+    * compared to [bare version](./example_http_archive_bare/WORKSPACE)
+* [git_repository](./example_git_repository_locked/WORKSPACE) example
+	* compared to [bare version](./example_git_repository_bare/WORKSPACE)
 
-A [dependency on HEAD](./example_http_archive_locked_constrained/WORKSPACE):
+A [dependency on HEAD](./example_http_archive_locked_HEAD/WORKSPACE):
 ```python
 http_archive(
     name = "bazel_skylib",
@@ -117,3 +120,5 @@ Then when adding or upgrading dependencies (install then) run `bazel-lock`.
 * First class support by creating a `bazel lock` or similar which would write to a versionable lockfile.
     * `bazel lock --upgrade <dependency>`
 * Integrate with https://github.com/bazelbuild/bazel-gazelle#update-repos
+* https://blog.bazel.build/2018/09/28/first-class-resolved-file.html
+    * Integrate with this as it seems to be where the Bazel team is iterating
